@@ -7,6 +7,11 @@ A lightweight workspace for small applications, shared packages, and disposable 
 - `apps/` — runnable applications
 - `packages/` — reusable libraries shared by applications
 - `experiments/` — short-lived proofs of concept
+- `docs/` — specifications and design notes
+
+## Specifications
+
+- [SafeArtifact draft specification](docs/safe-artifact-spec.md)
 
 ## Requirements
 
