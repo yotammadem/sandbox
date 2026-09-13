@@ -81,7 +81,7 @@ SafeArtifact does not claim to prevent:
 
 - deception expressed in clearly visible content;
 - a user voluntarily following a malicious external link;
-- disclosure after a recipient legitimately decrypts or exports an artifact;
+- disclosure after a recipient exports or otherwise shares an artifact;
 - malicious text embedded inside image pixels. Images are therefore outside v0.1.
 
 ## 4. Artifact document
@@ -371,7 +371,7 @@ A default v0.1 deployment profile enforces:
 
 Deployments MAY choose lower limits. Higher limits require a different named deployment profile and dedicated conformance testing.
 
-The earlier proof-of-concept retention target of ten days is a storage policy, not part of the portable artifact format.
+Retention is a storage policy and is not part of the portable artifact format.
 
 ## 11. Browser isolation
 
@@ -399,29 +399,7 @@ Additional requirements:
 - Do not expose secrets, credentials, or privileged APIs to the viewer origin.
 - Treat exports as newly generated data, not as trusted source files.
 
-## 12. Storage and encrypted transport
-
-The core specification is storage-neutral. An artifact may be served from an API, object storage, or a Git-backed sharing mechanism.
-
-A public Git or GitHub Pages transport MUST NOT be treated as confidential storage. Confidential artifacts require an encrypted envelope:
-
-```json
-{
-  "kind": "safeartifact/encrypted-envelope",
-  "specVersion": "0.1",
-  "algorithm": "X25519-HKDF-SHA256+A256GCM",
-  "recipientKeyId": "sha256-...",
-  "ephemeralPublicKey": "...",
-  "nonce": "...",
-  "ciphertext": "..."
-}
-```
-
-Encryption is an optional transport profile and will need a separate cryptographic specification before implementation. The algorithm identifiers above are provisional. A viewer MUST NOT invent fallback cryptography when it encounters an unsupported profile.
-
-Public-key encryption protects artifact contents at rest in a public Git-backed transport; it does not hide repository metadata, access times, artifact size, or decrypted content from the recipient's device.
-
-## 13. Versioning
+## 12. Versioning
 
 - `specVersion` changes when the envelope, validation, or rendering contract changes.
 - Artifact Type versions follow semantic versioning by convention, but artifacts always pin exact versions and digests.
@@ -430,7 +408,7 @@ Public-key encryption protects artifact contents at rest in a public Git-backed 
 - New component kinds require a new SafeArtifact specification version or an explicitly negotiated extension profile.
 - Unknown fields and unknown component kinds fail closed in v0.1.
 
-## 14. Conformance requirements
+## 13. Conformance requirements
 
 A conforming producer MUST:
 
@@ -455,7 +433,7 @@ A conforming viewer MUST:
 - apply browser isolation and resource limits;
 - fail closed without losing the ability to show safe canonical JSON when possible.
 
-## 15. Example
+## 14. Example
 
 Artifact:
 
@@ -483,7 +461,7 @@ Artifact:
 
 The type's View Definition renders the summary and table. The viewer's permanent metadata region renders all envelope text. Coverage succeeds because every string under `content` appears visibly in the summary or table.
 
-## 16. v0.1 non-goals
+## 15. v0.1 non-goals
 
 The first implementation deliberately excludes:
 
@@ -496,16 +474,15 @@ The first implementation deliberately excludes:
 - artifact-selected network requests;
 - conditional or collapsed sections;
 - cross-artifact composition;
-- offline cryptographic identity and signatures beyond digest pinning.
+- digital signatures beyond digest pinning.
 
-## 17. Open decisions
+## 16. Open decisions
 
 These choices should be resolved before implementation:
 
 1. The exact supported subset and implementation library for JSON Schema Draft 2020-12.
 2. Whether numbers, booleans, and null should receive the same mandatory coverage guarantee as strings. The recommended answer is yes.
-3. Whether encrypted transport belongs in v0.1 or a separate `safeartifact-encryption` specification.
-4. The registry naming authority for type names.
-5. Whether ten-day retention and the 1 MiB cap are universal product rules or deployment-profile defaults.
-6. The canonical JSON serialization used for type digests.
-7. Whether artifact titles and producer metadata belong inside `content` to simplify the coverage model.
+3. The registry naming authority for type names.
+4. Whether ten-day retention and the 1 MiB cap are universal product rules or deployment-profile defaults.
+5. The canonical JSON serialization used for type digests.
+6. Whether artifact titles and producer metadata belong inside `content` to simplify the coverage model.
