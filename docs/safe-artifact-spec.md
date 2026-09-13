@@ -27,9 +27,9 @@ The viewer itself may contain trusted application code. That code is part of the
 
 ### 2.2 Types are defined by schemas
 
-Every artifact references an immutable, versioned Artifact Type Definition. Its `contentSchema` uses the supported SafeArtifact profile of JSON Schema Draft 2020-12.
+Every artifact references an immutable, versioned Artifact Type Definition. Its `contentSchema` uses the SafeArtifact Schema dialect: a restricted profile of JSON Schema Draft 2020-12 with explicitly defined SafeArtifact semantic primitives.
 
-Validation is performed before rendering. Invalid artifacts fail closed.
+Validation is performed before rendering. Invalid artifacts fail closed. Generic JSON Schema validators are insufficient unless they implement the SafeArtifact dialect.
 
 ### 2.3 Presentation is declarative
 
@@ -113,7 +113,7 @@ A v0.1 artifact has this shape:
 | `type.version` | Exact immutable type version. Version ranges are forbidden. |
 | `type.digest` | Digest of the canonical Artifact Type Definition. |
 | `title` | Human-readable artifact title. It is always visibly rendered. |
-| `createdAt` | RFC 3339 timestamp. It is always visibly rendered. |
+| `createdAt` | SafeArtifact `dateTime` value. It is always visibly rendered. |
 | `content` | JSON value validated by the referenced `contentSchema`. |
 
 ### 4.2 Optional fields
@@ -139,9 +139,10 @@ All textual top-level metadata MUST be shown by the viewer in a permanent visibl
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "type": "object",
     "additionalProperties": false,
-    "required": ["summary", "services"],
+    "required": ["summary", "observedAt", "services"],
     "properties": {
       "summary": { "type": "string", "maxLength": 4000 },
+      "observedAt": { "type": "dateTime" },
       "services": {
         "type": "array",
         "maxItems": 100,
@@ -179,6 +180,56 @@ All textual top-level metadata MUST be shown by the viewer in a permanent visibl
 
 A registry may contain built-in types and third-party types. Registration does not make a type trusted; it only gives the definition an immutable identity.
 
+### 5.2 SafeArtifact semantic primitives
+
+SafeArtifact extends the JSON Schema `type` vocabulary with semantic primitives. Their values still use ordinary JSON representations, but validation, comparison, and rendering follow SafeArtifact rules rather than generic string rules.
+
+v0.1 adds one semantic primitive:
+
+| SafeArtifact type | JSON representation | Required lexical format |
+| --- | --- | --- |
+| `dateTime` | string | Canonical UTC date and time described below |
+
+A field is declared as:
+
+```json
+{
+  "type": "dateTime"
+}
+```
+
+A `dateTime` value MUST use this canonical form:
+
+```text
+YYYY-MM-DDTHH:mm:ss[.fraction]Z
+```
+
+Examples:
+
+```json
+"2026-09-13T09:00:00Z"
+"2026-09-13T09:00:00.125Z"
+```
+
+The rules are:
+
+- the date uses the proleptic Gregorian calendar and MUST be a real calendar date;
+- the time uses a 24-hour clock;
+- seconds range from `00` through `59`; leap-second notation is not supported in v0.1;
+- fractional seconds are optional and contain between one and nine digits;
+- UTC marker `Z` is mandatory;
+- numeric UTC offsets, local times, spaces, and locale-specific formats are rejected;
+- producers SHOULD omit the fractional part when it is zero;
+- comparison and ordering use the represented instant, not lexical string comparison.
+
+This is a strict UTC subset of RFC 3339. Restricting the representation to one timezone and one lexical shape makes validation, hashing, comparison, and display deterministic.
+
+A SafeArtifact-aware validator MUST validate both the lexical representation and its calendar meaning. A compiler MAY translate `{ "type": "dateTime" }` into a string schema plus a custom assertion, but a generic JSON Schema `format: "date-time"` check alone is not conforming.
+
+A viewer MAY add a localized human-readable representation, but it MUST also render the complete canonical source value as visible text. Placing the source value only in a `datetime` attribute, tooltip, accessibility label, or other hidden location does not satisfy text coverage.
+
+The envelope fields `createdAt` and `expiresAt` use the same `dateTime` primitive and lexical rules.
+
 ## 6. View Definition
 
 A View Definition is a tree made from an allowlist of component nodes. It is stored only as the required `view` member of an Artifact Type Definition.
@@ -192,6 +243,10 @@ A View Definition is a tree made from an allowlist of component nodes. It is sto
       "kind": "text",
       "value": { "path": "/summary" },
       "emphasis": "lead"
+    },
+    {
+      "kind": "dateTime",
+      "value": { "path": "/observedAt" }
     },
     {
       "kind": "table",
@@ -226,7 +281,7 @@ Paths use RFC 6901 JSON Pointer. A path in a repeating context is relative to th
 | `code` | Visible preformatted text |
 | `number` | Locale-neutral or viewer-formatted number |
 | `boolean` | Visible true/false value |
-| `dateTime` | Visible timestamp |
+| `dateTime` | SafeArtifact `dateTime` value, including its visible canonical source |
 | `link` | Visible URL and label |
 | `list` | Ordered or unordered repeated values |
 | `keyValue` | Visible label/value pairs |
@@ -302,7 +357,7 @@ Visibility is a data-level invariant, not a best-effort visual guideline.
 
 After schema validation, the validator walks the artifact and creates a set containing:
 
-- every string leaf under `content`;
+- every string leaf under `content`, including the JSON representation of every `dateTime` value;
 - `title`;
 - every optional textual metadata value;
 - the visible form of `id`, type name, type version, and timestamps.
@@ -313,7 +368,7 @@ Each member is identified by its absolute JSON Pointer, so duplicate string valu
 
 The viewer expands repeats and resolves every View Definition binding. A text obligation is covered only when its complete value is emitted into a visible text node.
 
-A visual representation does not cover its source value. For example, a status badge must also contain its visible text, and a chart would require a visible data table. Charts are deferred from v0.1.
+A transformed or visual representation does not cover its source value. For example, a localized date-time must also show its canonical value, a status badge must contain its visible text, and a chart would require a visible data table. Charts are deferred from v0.1.
 
 A value may be rendered more than once. Every obligation must be rendered at least once.
 
@@ -451,6 +506,7 @@ Artifact:
   "producer": "deployment-agent/1.4.0",
   "content": {
     "summary": "Deployment completed with one degraded service.",
+    "observedAt": "2026-09-13T09:00:00Z",
     "services": [
       { "name": "API", "status": "healthy" },
       { "name": "Worker", "status": "degraded" }
@@ -459,7 +515,7 @@ Artifact:
 }
 ```
 
-The type's View Definition renders the summary and table. The viewer's permanent metadata region renders all envelope text. Coverage succeeds because every string under `content` appears visibly in the summary or table.
+The type's View Definition renders the summary, observation time, and table. The viewer's permanent metadata region renders all envelope text. Coverage succeeds because every string under `content`, including the canonical `dateTime` value, appears visibly.
 
 ## 15. v0.1 non-goals
 
