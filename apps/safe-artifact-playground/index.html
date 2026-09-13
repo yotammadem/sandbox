@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light">
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'none'; connect-src 'none'; object-src 'none'; frame-src 'none'; base-uri 'none'; form-action 'none'"
+    >
+    <title>SafeArtifact Playground</title>
+    <meta name="description" content="Edit, validate, and safely render SafeArtifact JSON in your browser.">
+    <link rel="stylesheet" href="./styles.css">
+    <script type="module" src="./app.js"></script>
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="brand-mark" aria-hidden="true">SA</div>
+      <div class="brand-copy">
+        <h1>SafeArtifact <span>Playground</span></h1>
+        <p>Structured UI from untrusted JSON—without artifact-supplied code.</p>
+      </div>
+      <div class="poc-badge">POC · v0.1</div>
+    </header>
+
+    <section class="control-bar" aria-label="Playground examples">
+      <label>
+        <span>Artifact type</span>
+        <select id="example-select"></select>
+      </label>
+      <label>
+        <span>Example artifact</span>
+        <select id="artifact-select"></select>
+      </label>
+      <button id="reset-example" class="secondary-button" type="button">Reset example</button>
+      <div id="status-pill" class="status-pill" role="status">Loading</div>
+    </section>
+
+    <nav class="mobile-switcher" aria-label="Choose workspace pane">
+      <button type="button" data-pane="edit" aria-pressed="true">Edit JSON</button>
+      <button type="button" data-pane="preview" aria-pressed="false">Preview</button>
+    </nav>
+
+    <main class="workspace" data-mobile-pane="edit">
+      <section class="editors-pane" aria-label="SafeArtifact source editors">
+        <article class="editor-card">
+          <header class="panel-header">
+            <div>
+              <span class="panel-kicker">Schema + presentation</span>
+              <h2>Type Definition</h2>
+            </div>
+            <button id="format-type" class="text-button" type="button">Format JSON</button>
+          </header>
+          <textarea id="type-editor" aria-label="Artifact Type Definition JSON" spellcheck="false"></textarea>
+        </article>
+
+        <article class="editor-card">
+          <header class="panel-header">
+            <div>
+              <span class="panel-kicker">Untrusted data</span>
+              <h2>Artifact</h2>
+            </div>
+            <button id="format-artifact" class="text-button" type="button">Format JSON</button>
+          </header>
+          <textarea id="artifact-editor" aria-label="Artifact JSON" spellcheck="false"></textarea>
+        </article>
+
+        <article class="validation-card">
+          <header class="panel-header compact">
+            <div>
+              <span class="panel-kicker">Fail closed</span>
+              <h2>Validation</h2>
+            </div>
+          </header>
+          <div id="validation" aria-live="polite"></div>
+        </article>
+      </section>
+
+      <section class="preview-pane" aria-label="Rendered artifact">
+        <header class="preview-toolbar">
+          <div>
+            <span class="panel-kicker">Trusted renderer</span>
+            <h2>Artifact preview</h2>
+          </div>
+          <span class="security-note">No HTML · No eval · No network</span>
+        </header>
+        <div id="preview" class="preview-canvas" aria-live="polite"></div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <p>This POC implements a deliberately small SafeArtifact schema and View Definition subset. Type digests are referenced but not cryptographically verified.</p>
+    </footer>
+  </body>
+</html>

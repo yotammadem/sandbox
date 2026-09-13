@@ -1,0 +1,10 @@
+{
+  "name": "@sandbox/safe-artifact-playground",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build.js",
+    "test": "node --test"
+  }
+}

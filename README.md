@@ -13,6 +13,10 @@ A lightweight workspace for small applications, shared packages, and disposable 
 
 - [SafeArtifact draft specification](docs/safe-artifact-spec.md)
 
+## Live demos
+
+- [SafeArtifact Playground](https://yotammadem.github.io/sandbox/)
+
 ## Requirements
 
 - Node.js 20 or newer
