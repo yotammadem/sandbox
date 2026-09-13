@@ -22,11 +22,18 @@ const VIEW_KEYS = {
   list: new Set(["kind", "items", "ordered", "label"]),
   keyValue: new Set(["kind", "entries"]),
   table: new Set(["kind", "rows", "columns"]),
+  timeBarChart: new Set(["kind", "title", "items", "time", "value", "bucket", "tone"]),
   json: new Set(["kind", "value"]),
   divider: new Set(["kind"]),
 };
 
 const DATE_TIME_PATTERN = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,9}))?Z$/;
+const BUCKET_UNIT_MS = {
+  second: 1_000,
+  minute: 60_000,
+  hour: 3_600_000,
+  day: 86_400_000,
+};
 
 function issue(path, message) {
   return { path: path || "/", message };
@@ -205,6 +212,24 @@ function validateViewNode(node, path, errors) {
           validateBinding(column.value, `${path}/columns/${index}/value`, errors);
         }
       });
+    }
+  }
+
+  if (node.kind === "timeBarChart") {
+    if (typeof node.title !== "string" || !node.title) {
+      errors.push(issue(`${path}/title`, "timeBarChart requires a visible title."));
+    }
+    validateBinding(node.items, `${path}/items`, errors);
+    validateBinding(node.time, `${path}/time`, errors);
+    validateBinding(node.value, `${path}/value`, errors);
+    if (
+      !isPlainObject(node.bucket) ||
+      !Number.isInteger(node.bucket.size) ||
+      node.bucket.size < 1 ||
+      node.bucket.size > 10_000 ||
+      !Object.hasOwn(BUCKET_UNIT_MS, node.bucket.unit)
+    ) {
+      errors.push(issue(`${path}/bucket`, "bucket requires size 1–10000 and unit second, minute, hour, or day."));
     }
   }
 }
@@ -430,6 +455,58 @@ function buildNode(node, context, covered, errors, viewPath) {
       });
     });
     return { kind: "table", columns: node.columns.map((column) => column.header), rows };
+  }
+
+  if (node.kind === "timeBarChart") {
+    const resolved = resolveBinding(node.items, context);
+    if (resolved.error || !Array.isArray(resolved.value)) {
+      const message = resolved.error ?? "Chart items must resolve to an array.";
+      errors.push(issue(`${viewPath}/items`, message));
+      return { kind: "error", message };
+    }
+
+    const points = resolved.value.map((item, index) => {
+      const itemContext = { value: item, pointer: joinPointer(resolved.pointer, index) };
+      const time = resolveBinding(node.time, itemContext);
+      const value = resolveBinding(node.value, itemContext);
+
+      if (time.error) errors.push(issue(`${viewPath}/time`, `${time.error} (bar ${index + 1})`));
+      if (value.error) errors.push(issue(`${viewPath}/value`, `${value.error} (bar ${index + 1})`));
+      if (!time.error && !isDateTime(time.value)) {
+        errors.push(issue(time.pointer, `Chart time for bar ${index + 1} must be a canonical dateTime.`));
+      }
+      if (!value.error && (typeof value.value !== "number" || !Number.isFinite(value.value) || value.value < 0)) {
+        errors.push(issue(value.pointer, `Chart value for bar ${index + 1} must be a non-negative finite number.`));
+      }
+      if (!time.error) markValue(time.value, time.pointer, covered);
+
+      return {
+        time: time.error ? "Invalid time" : time.value,
+        timePath: time.pointer,
+        value: value.error ? 0 : value.value,
+        valuePath: value.pointer,
+      };
+    });
+
+    const bucketMs = node.bucket.size * BUCKET_UNIT_MS[node.bucket.unit];
+    for (let index = 1; index < points.length; index += 1) {
+      const previous = Date.parse(points[index - 1].time);
+      const current = Date.parse(points[index].time);
+      if (Number.isFinite(previous) && Number.isFinite(current) && current - previous !== bucketMs) {
+        errors.push(issue(
+          `${viewPath}/items`,
+          `Bars ${index} and ${index + 1} are not separated by exactly ${node.bucket.size} ${node.bucket.unit}(s).`,
+        ));
+      }
+    }
+
+    return {
+      kind: "timeBarChart",
+      title: node.title,
+      tone: node.tone,
+      bucket: node.bucket,
+      points,
+    };
   }
 
   errors.push(issue(viewPath, `Renderer does not support ${node.kind}.`));

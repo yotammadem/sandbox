@@ -89,3 +89,44 @@ test("table bindings resolve relative to each row", () => {
   assert.deepEqual(result.missing, []);
   assert.deepEqual(result.model.rows.map((row) => row[0].value), ["first", "second"]);
 });
+
+test("time bar chart covers canonical times and preserves fixed buckets", () => {
+  const content = {
+    buckets: [
+      { at: "2026-09-13T12:00:00Z", value: 2.5 },
+      { at: "2026-09-13T12:05:00Z", value: 7.25 },
+      { at: "2026-09-13T12:10:00Z", value: 4 },
+    ],
+  };
+  const view = {
+    kind: "timeBarChart",
+    title: "Queue time",
+    items: { path: "/buckets" },
+    time: { path: "/at" },
+    value: { path: "/value" },
+    bucket: { size: 5, unit: "minute" },
+  };
+  const result = buildViewModel(content, view);
+  assert.deepEqual(result.errors, []);
+  assert.deepEqual(result.missing, []);
+  assert.deepEqual(result.model.points.map((point) => point.value), [2.5, 7.25, 4]);
+});
+
+test("time bar chart rejects gaps that violate its fixed bucket size", () => {
+  const content = {
+    buckets: [
+      { at: "2026-09-13T12:00:00Z", value: 1 },
+      { at: "2026-09-13T12:06:00Z", value: 2 },
+    ],
+  };
+  const view = {
+    kind: "timeBarChart",
+    title: "Queue time",
+    items: { path: "/buckets" },
+    time: { path: "/at" },
+    value: { path: "/value" },
+    bucket: { size: 5, unit: "minute" },
+  };
+  const result = buildViewModel(content, view);
+  assert.equal(result.errors.some((error) => error.message.includes("not separated by exactly 5 minute")), true);
+});

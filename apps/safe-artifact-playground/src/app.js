@@ -175,6 +175,44 @@ function renderModel(model) {
     return scroll;
   }
 
+  if (model.kind === "timeBarChart") {
+    const chart = element("section", "time-chart");
+    if (model.tone) chart.dataset.tone = model.tone;
+    const header = element("header", "time-chart-header");
+    header.append(
+      element("h3", "", model.title),
+      element("span", "time-chart-bucket", `${model.bucket.size} ${model.bucket.unit}${model.bucket.size === 1 ? "" : "s"} per bar`),
+    );
+    chart.append(header);
+
+    if (model.points.length === 0) {
+      chart.append(element("p", "time-chart-empty", "No time buckets"));
+      return chart;
+    }
+
+    const max = Math.max(...model.points.map((point) => point.value), 0);
+    const scroll = element("div", "time-chart-scroll");
+    const plot = element("div", "time-chart-plot");
+    for (const point of model.points) {
+      const column = element("div", "time-bar-column");
+      column.append(element("strong", "time-bar-value", stringify(point.value)));
+      const track = element("div", "time-bar-track");
+      const bar = element("div", "time-bar");
+      const percentage = max === 0 ? 0 : Math.max(3, (point.value / max) * 100);
+      bar.style.setProperty("--bar-height", `${Math.min(100, percentage)}%`);
+      track.append(bar);
+      const date = new Date(point.time);
+      const local = Number.isNaN(date.valueOf())
+        ? "Invalid date-time"
+        : new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }).format(date);
+      column.append(track, element("span", "time-bar-local", local), element("code", "time-bar-source", point.time));
+      plot.append(column);
+    }
+    scroll.append(plot);
+    chart.append(scroll);
+    return chart;
+  }
+
   if (model.kind === "json") return element("pre", "artifact-code", JSON.stringify(model.value, null, 2));
   return element("div", "render-error", `Unknown render node: ${model.kind}`);
 }

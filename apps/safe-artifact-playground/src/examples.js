@@ -271,8 +271,101 @@ const changeSetArtifacts = [
   },
 ];
 
+const queueChartType = {
+  kind: "safeartifact/type-definition",
+  specVersion: "0.1",
+  name: "demo.queue-wait-time",
+  version: "1.0.0",
+  contentSchema: {
+    type: "object",
+    additionalProperties: false,
+    required: ["summary", "buckets"],
+    properties: {
+      summary: { type: "string", maxLength: 2000 },
+      buckets: {
+        type: "array",
+        minItems: 1,
+        maxItems: 48,
+        items: {
+          type: "object",
+          additionalProperties: false,
+          required: ["startedAt", "waitingSeconds"],
+          properties: {
+            startedAt: { type: "dateTime" },
+            waitingSeconds: { type: "number", minimum: 0 },
+          },
+        },
+      },
+    },
+  },
+  view: {
+    kind: "stack",
+    gap: "large",
+    children: [
+      { kind: "text", value: { path: "/summary" }, emphasis: "lead" },
+      {
+        kind: "timeBarChart",
+        title: "Oldest queued job",
+        tone: "info",
+        items: { path: "/buckets" },
+        time: { path: "/startedAt" },
+        value: { path: "/waitingSeconds" },
+        bucket: { size: 5, unit: "minute" },
+      },
+    ],
+  },
+};
+
+const queueChartArtifacts = [
+  {
+    label: "Stable queue",
+    value: {
+      specVersion: "0.1",
+      id: "queue-window-001",
+      type: typeRef(queueChartType.name, queueChartType.version),
+      title: "Tenant queue wait time",
+      createdAt: "2026-09-13T12:30:00Z",
+      producer: "admission-monitor/0.1.0",
+      content: {
+        summary: "The oldest queued job stayed below the 10-second reaction objective.",
+        buckets: [
+          { startedAt: "2026-09-13T12:00:00Z", waitingSeconds: 2.1 },
+          { startedAt: "2026-09-13T12:05:00Z", waitingSeconds: 3.4 },
+          { startedAt: "2026-09-13T12:10:00Z", waitingSeconds: 4.2 },
+          { startedAt: "2026-09-13T12:15:00Z", waitingSeconds: 3.7 },
+          { startedAt: "2026-09-13T12:20:00Z", waitingSeconds: 5.1 },
+          { startedAt: "2026-09-13T12:25:00Z", waitingSeconds: 4.4 },
+        ],
+      },
+    },
+  },
+  {
+    label: "Queue spike",
+    value: {
+      specVersion: "0.1",
+      id: "queue-window-002",
+      type: typeRef(queueChartType.name, queueChartType.version),
+      title: "Tenant queue wait time",
+      createdAt: "2026-09-13T13:00:00Z",
+      producer: "admission-monitor/0.1.0",
+      content: {
+        summary: "Queue wait time spiked for three buckets and recovered after capacity increased.",
+        buckets: [
+          { startedAt: "2026-09-13T12:30:00Z", waitingSeconds: 4.8 },
+          { startedAt: "2026-09-13T12:35:00Z", waitingSeconds: 8.2 },
+          { startedAt: "2026-09-13T12:40:00Z", waitingSeconds: 18.7 },
+          { startedAt: "2026-09-13T12:45:00Z", waitingSeconds: 31.4 },
+          { startedAt: "2026-09-13T12:50:00Z", waitingSeconds: 22.6 },
+          { startedAt: "2026-09-13T12:55:00Z", waitingSeconds: 7.3 },
+        ],
+      },
+    },
+  },
+];
+
 export const examples = [
   { id: "deployment", label: "Deployment status", definition: deploymentType, artifacts: deploymentArtifacts },
   { id: "test-run", label: "Test run summary", definition: testRunType, artifacts: testRunArtifacts },
   { id: "change-set", label: "Change-set", definition: changeSetType, artifacts: changeSetArtifacts },
+  { id: "queue-chart", label: "Time bar chart", definition: queueChartType, artifacts: queueChartArtifacts },
 ];

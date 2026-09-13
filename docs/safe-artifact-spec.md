@@ -286,6 +286,7 @@ Paths use RFC 6901 JSON Pointer. A path in a repeating context is relative to th
 | `list` | Ordered or unordered repeated values |
 | `keyValue` | Visible label/value pairs |
 | `table` | Tabular repeated objects |
+| `timeBarChart` | Equal-duration time buckets rendered as bars with visible source values |
 | `divider` | Non-semantic separator |
 | `json` | Canonical visible rendering of a selected subtree |
 
@@ -328,6 +329,43 @@ v0.1 supports navigation links only.
 - Links open with `noopener` and `noreferrer`.
 - Forms, mutations, callbacks, commands, downloads, and artifact-defined network requests are forbidden.
 
+### 6.5 Time bar chart
+
+`timeBarChart` displays a numeric value for each consecutive, fixed-duration time bucket.
+
+```json
+{
+  "kind": "timeBarChart",
+  "title": "Oldest queued job",
+  "tone": "info",
+  "items": { "path": "/buckets" },
+  "time": { "path": "/startedAt" },
+  "value": { "path": "/waitingSeconds" },
+  "bucket": {
+    "size": 5,
+    "unit": "minute"
+  }
+}
+```
+
+The bindings and bucket definition have these meanings:
+
+| Field | Requirement |
+| --- | --- |
+| `title` | Required visible chart title. |
+| `items` | Resolves to the array containing the buckets. |
+| `time` | Resolves relative to each item to the bucket's canonical `dateTime` start. |
+| `value` | Resolves relative to each item to a finite, non-negative number. |
+| `bucket.size` | Integer from 1 through 10,000. |
+| `bucket.unit` | One of `second`, `minute`, `hour`, or `day`. |
+| `tone` | Optional semantic tone token. |
+
+Every item represents exactly one bucket. Items MUST be ordered by ascending start time, and adjacent start times MUST differ by exactly the duration declared in `bucket`. Gaps, overlaps, duplicate times, variable bucket lengths, months, and years are rejected in v0.1.
+
+All bars use the same visual width and numeric scale. The viewer chooses the safe pixel dimensions; `bucket` controls the represented time duration, not arbitrary CSS sizing. When the chart is wider than the viewport, the viewer MUST preserve every bar and allow normal horizontal scrolling.
+
+The visual bar alone never satisfies visibility coverage. Each bar MUST also display its complete canonical `dateTime` and exact numeric value as visible text. A viewer MAY additionally show a localized time label, grid lines, or other trusted decoration.
+
 ## 7. Canonical fallback view
 
 Every conforming viewer MUST implement a canonical fallback that:
@@ -368,7 +406,7 @@ Each member is identified by its absolute JSON Pointer, so duplicate string valu
 
 The viewer expands repeats and resolves every View Definition binding. A text obligation is covered only when its complete value is emitted into a visible text node.
 
-A transformed or visual representation does not cover its source value. For example, a localized date-time must also show its canonical value, a status badge must contain its visible text, and a chart would require a visible data table. Charts are deferred from v0.1.
+A transformed or visual representation does not cover its source value. For example, a localized date-time must also show its canonical value and a status badge must contain its visible text. A `timeBarChart` covers a bucket time only because the complete canonical value is printed next to its bar; the bar by itself does not cover anything.
 
 A value may be rendered more than once. Every obligation must be rendered at least once.
 
@@ -524,7 +562,7 @@ The first implementation deliberately excludes:
 - JavaScript and user-defined expressions;
 - arbitrary HTML, CSS, and SVG;
 - images and embedded media;
-- charts without an always-visible source table;
+- charts that do not visibly print every source time and value;
 - forms and mutations;
 - live data bindings;
 - artifact-selected network requests;
