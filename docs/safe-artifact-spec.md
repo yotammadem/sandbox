@@ -11,7 +11,7 @@ The format separates three concerns:
 
 1. **Artifact data** — the actual content, represented as JSON.
 2. **Artifact Type Definition** — a versioned JSON Schema describing valid content.
-3. **View Definition** — an optional declarative description of how valid content is presented using a fixed set of trusted UI primitives.
+3. **View Definition** — a declarative description, embedded in the Artifact Type Definition, of how valid content is presented using a fixed set of trusted UI primitives.
 
 A conforming viewer treats every artifact, schema, and View Definition as untrusted input.
 
@@ -35,7 +35,7 @@ Validation is performed before rendering. Invalid artifacts fail closed.
 
 The term **View Definition** replaces “presentation layout.” It describes hierarchy, grouping, and bindings between JSON values and trusted components. It cannot define new components or behavior.
 
-An Artifact Type Definition MAY provide a default View Definition. An individual artifact MAY provide its own View Definition when the type permits it. Both are subject to identical validation and visibility rules.
+Every Artifact Type Definition MUST contain exactly one View Definition. Artifacts contain data only: they cannot provide, select, extend, or override a View Definition. Changing the presentation requires publishing a new immutable version of the Artifact Type Definition with a new digest.
 
 ### 2.4 No hidden text
 
@@ -55,7 +55,7 @@ Text is not considered visible when it is available only through:
 
 Scrolling is allowed. Text below the fold is still visible if normal scrolling reaches it without an additional reveal action.
 
-A viewer MUST run the coverage check described in section 8. If a custom view omits text, the viewer MUST reject that view and render the canonical fallback instead.
+A viewer MUST run the coverage check described in section 8. A Type Definition whose View Definition omits text is invalid. As a defense against registry or viewer defects, the viewer MUST use the canonical fallback rather than render an incomplete view.
 
 This rule deliberately favors inspectability over aesthetics.
 
@@ -64,7 +64,6 @@ This rule deliberately favors inspectability over aesthetics.
 SafeArtifact assumes that an attacker may control:
 
 - every value in the artifact;
-- an inline View Definition;
 - an Artifact Type Definition submitted to a registry;
 - URLs and labels;
 - nesting, sizes, Unicode, and malformed data.
@@ -100,8 +99,7 @@ A v0.1 artifact has this shape:
   },
   "title": "Deployment status",
   "createdAt": "2026-09-13T09:00:00Z",
-  "content": {},
-  "view": {}
+  "content": {}
 }
 ```
 
@@ -122,7 +120,6 @@ A v0.1 artifact has this shape:
 
 | Field | Meaning |
 | --- | --- |
-| `view` | Inline View Definition, if the Artifact Type allows custom views. |
 | `producer` | Visible producer name and optional version. |
 | `expiresAt` | RFC 3339 timestamp after which a viewer refuses normal rendering. |
 
@@ -163,8 +160,7 @@ All textual top-level metadata MUST be shown by the viewer in a permanent visibl
       }
     }
   },
-  "allowCustomView": true,
-  "defaultView": {}
+  "view": {}
 }
 ```
 
@@ -178,13 +174,14 @@ All textual top-level metadata MUST be shown by the viewer in a permanent visibl
 - Local `$defs` and local `$ref` are allowed with bounded resolution.
 - Schema annotations are not executable and cannot change viewer behavior.
 - The registry MUST reject schemas whose possible valid instances exceed platform limits.
-- `defaultView`, when present, MUST pass View Definition validation and coverage validation against representative and boundary instances.
+- `view` is required and MUST pass View Definition validation and coverage validation against representative and boundary instances.
+- An artifact cannot select or override the registered `view`.
 
 A registry may contain built-in types and third-party types. Registration does not make a type trusted; it only gives the definition an immutable identity.
 
 ## 6. View Definition
 
-A View Definition is a tree made from an allowlist of component nodes.
+A View Definition is a tree made from an allowlist of component nodes. It is stored only as the required `view` member of an Artifact Type Definition.
 
 ```json
 {
@@ -290,8 +287,7 @@ Every conforming viewer MUST implement a canonical fallback that:
 
 The fallback is used when:
 
-- no View Definition exists;
-- the View Definition is invalid;
+- the registered View Definition is invalid despite registry validation;
 - visibility coverage fails;
 - the requested component is unsupported;
 - rendering exceeds a safety budget.
@@ -336,7 +332,7 @@ Because artifacts cannot supply CSS, this audit mainly detects viewer regression
 
 ### 8.4 Failure behavior
 
-If coverage or visibility fails, the viewer discards the custom view and uses the canonical fallback. If the fallback cannot render safely, the viewer rejects the artifact.
+If coverage or visibility fails, the viewer discards the registered View Definition and uses the canonical fallback. If the fallback cannot render safely, the viewer rejects the artifact.
 
 ## 9. Validation and rendering pipeline
 
@@ -347,7 +343,7 @@ A viewer processes an artifact in this order:
 3. Validate the SafeArtifact envelope.
 4. Resolve the exact Type Definition by name, version, and digest.
 5. Validate `content` against `contentSchema`.
-6. Select the inline view, default view, or canonical fallback.
+6. Load the View Definition from the resolved Artifact Type Definition.
 7. Validate the View Definition against its closed schema.
 8. Resolve bindings and run coverage validation.
 9. Build an internal, typed render tree.
@@ -485,7 +481,7 @@ Artifact:
 }
 ```
 
-With no inline view, the type's default view may render the summary and table. The viewer's permanent metadata region renders all envelope text. Coverage succeeds because every string under `content` appears visibly in the summary or table.
+The type's View Definition renders the summary and table. The viewer's permanent metadata region renders all envelope text. Coverage succeeds because every string under `content` appears visibly in the summary or table.
 
 ## 16. v0.1 non-goals
 
@@ -506,11 +502,10 @@ The first implementation deliberately excludes:
 
 These choices should be resolved before implementation:
 
-1. Whether inline custom views are enabled by default or require explicit opt-in by each Artifact Type.
-2. The exact supported subset and implementation library for JSON Schema Draft 2020-12.
-3. Whether numbers, booleans, and null should receive the same mandatory coverage guarantee as strings. The recommended answer is yes.
-4. Whether encrypted transport belongs in v0.1 or a separate `safeartifact-encryption` specification.
-5. The registry naming authority for type names.
-6. Whether ten-day retention and the 1 MiB cap are universal product rules or deployment-profile defaults.
-7. The canonical JSON serialization used for type digests.
-8. Whether artifact titles and producer metadata belong inside `content` to simplify the coverage model.
+1. The exact supported subset and implementation library for JSON Schema Draft 2020-12.
+2. Whether numbers, booleans, and null should receive the same mandatory coverage guarantee as strings. The recommended answer is yes.
+3. Whether encrypted transport belongs in v0.1 or a separate `safeartifact-encryption` specification.
+4. The registry naming authority for type names.
+5. Whether ten-day retention and the 1 MiB cap are universal product rules or deployment-profile defaults.
+6. The canonical JSON serialization used for type digests.
+7. Whether artifact titles and producer metadata belong inside `content` to simplify the coverage model.
