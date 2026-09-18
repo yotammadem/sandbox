@@ -1,0 +1,28 @@
+{
+  "description": "In-sample all-window random search candidate with partial sells. Selected for historical worst-window robustness, not as an out-of-sample result.",
+  "candidate": {
+    "minWeeksAfterPeak": 6,
+    "sellConfirmationDrop": 0.3128902846388519,
+    "fibRetracement": 0.7420566088007763,
+    "buyZoneWeeks": 3,
+    "falseTopInvalidation": 0.9574644564429763,
+    "sellFraction": 0.7316690943087452
+  },
+  "allRollingWindows": {
+    "windowLengthsYears": [4,6,8],
+    "monthlyStartOffsets": true,
+    "count": 216,
+    "min": 1.0657499877003391,
+    "q10": 1.1953144841301435,
+    "median": 2.64234865168707,
+    "mean": 2.708457906848,
+    "pctAbove1": 1.0
+  },
+  "fullBitstampFrom2014_09_18": 5.225785549283843,
+  "commonWindowTo2023_07_20": {
+    "bitstamp": 4.850144784468075,
+    "yahoo": 4.312071602820422
+  },
+  "ethFrozenHistory": 2.9488548686729605,
+  "warning": "The 216-window result is in-sample because these windows participated in candidate selection."
+}
