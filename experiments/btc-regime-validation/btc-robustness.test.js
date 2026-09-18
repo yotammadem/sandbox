@@ -37,20 +37,20 @@ test("BTC baseline remains strong across an independent provider on the common w
   assert.ok(Math.abs(yahooResult.btcEquivalent - 4.3808331750109675) < 1e-9);
 });
 
-test("BTC baseline start-date sensitivity is frozen for research visibility", () => {
+test("BTC fixed six-year windows expose regime sensitivity without changing horizon length", () => {
   const expected = new Map([
-    ["2014-09-18", 5.595159213136329],
-    ["2015-01-01", 2.8440124883861473],
-    ["2016-01-01", 3.9491316584337746],
-    ["2017-01-01", 3.9491316584337746],
-    ["2018-01-01", 2.9668785436995244],
-    ["2019-01-01", 1.8209774032034567],
-    ["2020-01-01", 0.7547159085704993],
+    ["2014-09-18", 4.113941182282281],
+    ["2015-09-18", 2.0844906713330333],
+    ["2016-09-18", 3.676602957663684],
+    ["2017-09-18", 3.5667781098503255],
+    ["2018-09-18", 1.598842693326152],
+    ["2019-09-18", 0.6388175992445518],
   ]);
 
   for (const [start, value] of expected) {
-    const r = runFibRegimeStrategyFromCanonicalCsv(bitstampCsv, BASELINE, { start });
-    assert.ok(Math.abs(r.btcEquivalent - value) < 1e-9, start);
+    const end = String(Number(start.slice(0,4)) + 6) + start.slice(4);
+    const r = runFibRegimeStrategyFromCanonicalCsv(bitstampCsv, BASELINE, { start, end });
+    assert.ok(Math.abs(r.btcEquivalent - value) < 1e-9, `${start} -> ${end}`);
   }
 });
 
