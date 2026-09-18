@@ -1,0 +1,47 @@
+{
+  "seed": "0xB17C01",
+  "candidateCount": 50000,
+  "windows": {
+    "coarseTrain": 9,
+    "trainMonthly": 84,
+    "holdoutMonthly": 132,
+    "allMonthly": 216
+  },
+  "scoreFormula": "2*min + 1.5*q10 + 0.5*median + 0.5*pctAbove1",
+  "baseline": {
+    "params": {
+      "minWeeksAfterPeak": 3,
+      "sellConfirmationDrop": 0.3,
+      "fibRetracement": 0.618,
+      "buyZoneWeeks": 6,
+      "falseTopInvalidation": 0.98
+    },
+    "train": {"min":1.134023084728411,"q10":1.6500954968179566,"median":2.494567133370602,"mean":2.562587954779162,"pctAbove1":1},
+    "holdout": {"min":0.6079901778262233,"q10":0.681660640202253,"median":1.7733159510165264,"mean":2.219450869248369,"pctAbove1":0.7954545454545454},
+    "all": {"min":0.6079901778262233,"q10":0.8805264719598664,"median":2.174564294891951,"mean":2.3528930691770076,"pctAbove1":0.875}
+  },
+  "bestTrainRankedCandidate": {
+    "params": {
+      "minWeeksAfterPeak": 3,
+      "sellConfirmationDrop": 0.28037761494517327,
+      "fibRetracement": 0.6436001902329735,
+      "buyZoneWeeks": 4,
+      "falseTopInvalidation": 0.9649253321625292
+    },
+    "train": {"min":1.6929107269035577,"q10":2.341162804236307,"median":3.6623037328197476,"mean":3.869398487326757,"pctAbove1":1},
+    "holdout": {"min":0.6023809513531246,"q10":0.79579227377833,"median":2.5978394982447166,"mean":3.6304719662053833,"pctAbove1":0.7954545454545454},
+    "all": {"min":0.6023809513531246,"q10":0.9348269282036682,"median":3.368764021452372,"mean":3.7233878355303545,"pctAbove1":0.875}
+  },
+  "notableMoreRobustHoldoutCandidate": {
+    "params": {
+      "minWeeksAfterPeak": 6,
+      "sellConfirmationDrop": 0.2960591423511505,
+      "fibRetracement": 0.7246963708894327,
+      "buyZoneWeeks": 3,
+      "falseTopInvalidation": 0.9570109538082033
+    },
+    "train": {"min":1.4743684947168285,"q10":2.4769839898263495,"median":3.801723961296161,"mean":4.344380519613371,"pctAbove1":1},
+    "holdout": {"min":0.8439747704866083,"q10":0.9263586770364528,"median":2.4820649775179398,"mean":3.5256894108143553,"pctAbove1":0.8863636363636364},
+    "all": {"min":0.8439747704866083,"q10":1.0944129707291066,"median":3.4245246644965075,"mean":3.8440692864584154,"pctAbove1":0.9305555555555556}
+  }
+}
