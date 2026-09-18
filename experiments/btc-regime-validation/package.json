@@ -1,0 +1,8 @@
+{
+  "name": "@sandbox/btc-regime-validation",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test"
+  }
+}
