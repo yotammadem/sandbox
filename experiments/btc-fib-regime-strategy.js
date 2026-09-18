@@ -14,6 +14,7 @@ export const DEFAULT_PARAMS = Object.freeze({
   fibRetracement: 0.618,
   buyZoneWeeks: 6,
   falseTopInvalidation: 0.98,
+  sellFraction: 1.0,
 });
 
 /**
@@ -146,8 +147,9 @@ export function runFibRegimeStrategy(bars, overrides = {}) {
       if (!sellSignal) continue;
 
       const executionPrice = next.open;
-      cash = asset * executionPrice;
-      asset = 0;
+      const assetSold = asset * p.sellFraction;
+      cash = assetSold * executionPrice;
+      asset -= assetSold;
       state = "cash";
       frozenCycleLow = cycleLow;
       frozenPeak = peak;
@@ -163,13 +165,16 @@ export function runFibRegimeStrategy(bars, overrides = {}) {
         cycleLow: frozenCycleLow,
         drawdownFromPeak,
         fibLevel,
+        sellFraction: p.sellFraction,
+        assetSold,
+        assetRetained: asset,
       });
       continue;
     }
 
     if (bar.high >= frozenPeak * p.falseTopInvalidation) {
       const executionPrice = next.open;
-      asset = cash / executionPrice;
+      asset += cash / executionPrice;
       cash = 0;
       state = "asset";
 
@@ -197,7 +202,7 @@ export function runFibRegimeStrategy(bars, overrides = {}) {
     if (consecutiveWeeksInBuyZone < p.buyZoneWeeks) continue;
 
     const executionPrice = next.open;
-    asset = cash / executionPrice;
+    asset += cash / executionPrice;
     cash = 0;
     state = "asset";
 
@@ -220,7 +225,7 @@ export function runFibRegimeStrategy(bars, overrides = {}) {
   }
 
   const finalPrice = bars[bars.length - 1].close;
-  const btcEquivalent = state === "asset" ? asset : cash / finalPrice;
+  const btcEquivalent = asset + cash / finalPrice;
 
   return { btcEquivalent, finalState: state, asset, cash, trades };
 }
