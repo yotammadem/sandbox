@@ -1,47 +1,12 @@
 /**
- * BTC Fib Regime Strategy
+ * Deterministic Fib regime strategy research artifact.
  *
- * Deterministic state machine extracted from the backtest that reached
- * ~5.6 BTC-equivalent from a 1 BTC start on Bitstamp BTC/USD history
- * (2014-09-18 through 2026-09-17), before fees/tax/slippage/cash yield.
- *
- * IMPORTANT:
- * - This is a research artifact, not investment advice.
- * - The ~5.6x result is in-sample and may be overfit.
- * - No dates or BTC-cycle labels are encoded in the rules.
- *
- * Weekly bars expected:
- * {
- *   week: "YYYY-MM-DD",   // week start
- *   open: number,
- *   high: number,
- *   low: number,
- *   close: number
- * }
- *
- * Strategy parameters used for the ~5.6x run:
- * - sellConfirmationDrop = 0.30
- * - fibRetracement = 0.618
- * - buyZoneWeeks = 6
- * - falseTopInvalidation = 0.98
- *
- * Interpretation:
- * 1. While holding the asset, track the current cycle peak and cycle low.
- * 2. A SELL occurs after the market has moved at least 30% below that peak.
- *    In the original experiment the signal was also required to be at least
- *    3 weeks after the peak, to avoid reacting to the same weekly bar.
- * 3. At SELL time, freeze the prior cycle low and peak and compute:
- *
- *      fibLevel = peak - 0.618 * (peak - cycleLow)
- *
- * 4. While in cash:
- *    - If price returns to >= 98% of the old peak before a durable deep zone
- *      is established, treat the sell as a false top and rebuy.
- *    - Otherwise, count consecutive weekly closes at or below fibLevel.
- *    - After 6 consecutive weeks in that zone, BUY at next week's open.
- *
- * The strategy intentionally does NOT wait for a breakout from the buy zone.
+ * Frozen baseline parameters produced ~5.6 BTC-equivalent from a 1 BTC start
+ * on the original Bitstamp BTC/USD study window. That result is in-sample and
+ * may be overfit. No dates or BTC cycle labels are encoded in the rules.
  */
+
+export const CANONICAL_MARKET_FORMAT = "market-ohlcv-v1";
 
 export const DEFAULT_PARAMS = Object.freeze({
   minWeeksAfterPeak: 3,
@@ -52,20 +17,94 @@ export const DEFAULT_PARAMS = Object.freeze({
 });
 
 /**
- * Runs the deterministic strategy.
+ * Canonical CSV format:
  *
- * Trades are executed at the next week's open after a signal, which avoids
- * using the same close that generated the signal as the execution price.
+ * # format=market-ohlcv-v1
+ * # source_provider=...
+ * # instrument=...
+ * # asset_class=...
+ * # interval=1d
+ * # timezone=UTC
+ * date,open,high,low,close,volume
  *
- * @param {Array<{week:string,open:number,high:number,low:number,close:number}>} bars
- * @param {Partial<typeof DEFAULT_PARAMS>} overrides
- * @returns {{
- *   btcEquivalent:number,
- *   finalState:"asset"|"cash",
- *   asset:number,
- *   cash:number,
- *   trades:Array<object>
- * }}
+ * Metadata lines start with '# key=value'. The data header is fixed.
+ */
+export function parseCanonicalMarketCsv(csvText) {
+  const lines = csvText.trim().split(/\r?\n/);
+  const metadata = {};
+  let headerIndex = -1;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+    if (line.startsWith("#")) {
+      const body = line.slice(1).trim();
+      const eq = body.indexOf("=");
+      if (eq > 0) {
+        metadata[body.slice(0, eq).trim()] = body.slice(eq + 1).trim();
+      }
+      continue;
+    }
+    headerIndex = i;
+    break;
+  }
+
+  if (metadata.format !== CANONICAL_MARKET_FORMAT) {
+    throw new Error(`Unsupported market data format: ${metadata.format ?? "missing"}`);
+  }
+  if (headerIndex < 0) throw new Error("Missing CSV header.");
+
+  const header = lines[headerIndex].trim();
+  if (header !== "date,open,high,low,close,volume") {
+    throw new Error(`Unexpected CSV header: ${header}`);
+  }
+
+  const bars = lines.slice(headerIndex + 1)
+    .filter(Boolean)
+    .map((line, row) => {
+      const [date, open, high, low, close, volume] = line.split(",");
+      const bar = {
+        date,
+        open: Number(open),
+        high: Number(high),
+        low: Number(low),
+        close: Number(close),
+        volume: volume === "" || volume == null ? null : Number(volume),
+      };
+      if (
+        !/^\d{4}-\d{2}-\d{2}$/.test(bar.date) ||
+        !Number.isFinite(bar.open) ||
+        !Number.isFinite(bar.high) ||
+        !Number.isFinite(bar.low) ||
+        !Number.isFinite(bar.close)
+      ) {
+        throw new Error(`Invalid canonical OHLC row ${row + 1}: ${line}`);
+      }
+      return bar;
+    });
+
+  for (let i = 1; i < bars.length; i++) {
+    if (bars[i].date <= bars[i - 1].date) {
+      throw new Error(`Canonical rows must be strictly increasing by date: ${bars[i].date}`);
+    }
+  }
+
+  return { metadata, bars };
+}
+
+export function runFibRegimeStrategyFromCanonicalCsv(csvText, overrides = {}, range = {}) {
+  const { metadata, bars } = parseCanonicalMarketCsv(csvText);
+  const start = range.start ?? "0000-00-00";
+  const end = range.end ?? "9999-99-99";
+  const filtered = bars.filter(x => x.date >= start && x.date <= end);
+  return {
+    metadata,
+    ...runFibRegimeStrategy(aggregateDailyToWeekly(filtered), overrides),
+  };
+}
+
+/**
+ * Runs the deterministic strategy on Monday-based weekly bars.
+ * Signals use the current completed weekly bar; execution is at next week's open.
  */
 export function runFibRegimeStrategy(bars, overrides = {}) {
   if (!Array.isArray(bars) || bars.length < 2) {
@@ -77,16 +116,13 @@ export function runFibRegimeStrategy(bars, overrides = {}) {
   let state = "asset";
   let asset = 1;
   let cash = 0;
-
   let cycleLow = bars[0].low;
   let peak = bars[0].high;
   let peakIndex = 0;
-
   let frozenCycleLow = null;
   let frozenPeak = null;
   let fibLevel = null;
   let consecutiveWeeksInBuyZone = 0;
-
   const trades = [];
 
   for (let i = 1; i < bars.length - 1; i++) {
@@ -103,27 +139,19 @@ export function runFibRegimeStrategy(bars, overrides = {}) {
 
       const weeksSincePeak = i - peakIndex;
       const drawdownFromPeak = 1 - bar.close / peak;
-
       const sellSignal =
         weeksSincePeak >= p.minWeeksAfterPeak &&
         drawdownFromPeak >= p.sellConfirmationDrop;
 
-      if (!sellSignal) {
-        continue;
-      }
+      if (!sellSignal) continue;
 
       const executionPrice = next.open;
-
       cash = asset * executionPrice;
       asset = 0;
       state = "cash";
-
       frozenCycleLow = cycleLow;
       frozenPeak = peak;
-      fibLevel =
-        frozenPeak -
-        p.fibRetracement * (frozenPeak - frozenCycleLow);
-
+      fibLevel = frozenPeak - p.fibRetracement * (frozenPeak - frozenCycleLow);
       consecutiveWeeksInBuyZone = 0;
 
       trades.push({
@@ -136,18 +164,11 @@ export function runFibRegimeStrategy(bars, overrides = {}) {
         drawdownFromPeak,
         fibLevel,
       });
-
       continue;
     }
 
-    // CASH state
-
-    // False-top protection:
-    // if price effectively retakes the previous peak before we establish a
-    // durable deep retracement zone, admit that the sell was likely premature.
     if (bar.high >= frozenPeak * p.falseTopInvalidation) {
       const executionPrice = next.open;
-
       asset = cash / executionPrice;
       cash = 0;
       state = "asset";
@@ -160,32 +181,22 @@ export function runFibRegimeStrategy(bars, overrides = {}) {
         oldPeak: frozenPeak,
       });
 
-      // Preserve the prior cycle context because this was not considered
-      // a completed bear/buy-zone cycle.
       cycleLow = frozenCycleLow;
       peak = Math.max(frozenPeak, next.high);
       peakIndex = i + 1;
-
       frozenCycleLow = null;
       frozenPeak = null;
       fibLevel = null;
       consecutiveWeeksInBuyZone = 0;
-
       continue;
     }
 
-    if (bar.close <= fibLevel) {
-      consecutiveWeeksInBuyZone += 1;
-    } else {
-      consecutiveWeeksInBuyZone = 0;
-    }
+    consecutiveWeeksInBuyZone =
+      bar.close <= fibLevel ? consecutiveWeeksInBuyZone + 1 : 0;
 
-    if (consecutiveWeeksInBuyZone < p.buyZoneWeeks) {
-      continue;
-    }
+    if (consecutiveWeeksInBuyZone < p.buyZoneWeeks) continue;
 
     const executionPrice = next.open;
-
     asset = cash / executionPrice;
     cash = 0;
     state = "asset";
@@ -199,12 +210,9 @@ export function runFibRegimeStrategy(bars, overrides = {}) {
       consecutiveWeeksInBuyZone,
     });
 
-    // A durable deep zone completed the previous cycle.
-    // Start measuring the next one from here.
     cycleLow = next.low;
     peak = next.high;
     peakIndex = i + 1;
-
     frozenCycleLow = null;
     frozenPeak = null;
     fibLevel = null;
@@ -212,24 +220,11 @@ export function runFibRegimeStrategy(bars, overrides = {}) {
   }
 
   const finalPrice = bars[bars.length - 1].close;
-  const btcEquivalent =
-    state === "asset" ? asset : cash / finalPrice;
+  const btcEquivalent = state === "asset" ? asset : cash / finalPrice;
 
-  return {
-    btcEquivalent,
-    finalState: state,
-    asset,
-    cash,
-    trades,
-  };
+  return { btcEquivalent, finalState: state, asset, cash, trades };
 }
 
-/**
- * Optional helper to aggregate daily OHLC rows into Monday-based weekly bars.
- *
- * Daily rows:
- * { date: "YYYY-MM-DD", open, high, low, close }
- */
 export function aggregateDailyToWeekly(dailyBars) {
   const weeks = new Map();
 
@@ -246,16 +241,17 @@ export function aggregateDailyToWeekly(dailyBars) {
         high: d.high,
         low: d.low,
         close: d.close,
+        volume: d.volume ?? null,
       });
     } else {
       const w = weeks.get(week);
       w.high = Math.max(w.high, d.high);
       w.low = Math.min(w.low, d.low);
       w.close = d.close;
+      if (w.volume != null && d.volume != null) w.volume += d.volume;
+      else w.volume = null;
     }
   }
 
-  return [...weeks.values()].sort((a, b) =>
-    a.week.localeCompare(b.week)
-  );
+  return [...weeks.values()].sort((a, b) => a.week.localeCompare(b.week));
 }
