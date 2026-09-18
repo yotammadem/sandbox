@@ -1,48 +1,58 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
-import { aggregateDailyToWeekly, runFibRegimeStrategy } from "../btc-fib-regime-strategy.js";
+import {
+  CANONICAL_MARKET_FORMAT,
+  parseCanonicalMarketCsv,
+  runFibRegimeStrategyFromCanonicalCsv,
+} from "../btc-fib-regime-strategy.js";
 
-function parseYahoo(csv) {
-  return csv.trim().split(/\r?\n/).slice(1).map(line => {
-    const [date, open, high, low, close] = line.split(",");
-    const [m, d, y] = date.split("/").map(Number);
-    return {
-      date: `${String(y).padStart(4,"0")}-${String(m).padStart(2,"0")}-${String(d).padStart(2,"0")}`,
-      open: Number(open), high: Number(high), low: Number(low), close: Number(close)
-    };
-  });
-}
+const yahooCsv = fs.readFileSync(
+  new URL("./sources/btc-usd-yahoo.csv", import.meta.url),
+  "utf8"
+);
+const bitstampCsv = fs.readFileSync(
+  new URL("./sources/btc-usd-bitstamp.csv", import.meta.url),
+  "utf8"
+);
 
-function parseBitstamp(csv) {
-  return csv.trim().split(/\r?\n/).slice(1).map(line => {
-    const [datetime, open, high, low, close] = line.split(",");
-    return {
-      date: datetime.slice(0,10),
-      open: Number(open), high: Number(high), low: Number(low), close: Number(close)
-    };
-  });
-}
+test("canonical source files carry provenance metadata and a stable schema", () => {
+  for (const csv of [yahooCsv, bitstampCsv]) {
+    const { metadata, bars } = parseCanonicalMarketCsv(csv);
+    assert.equal(metadata.format, CANONICAL_MARKET_FORMAT);
+    assert.equal(metadata.instrument, "BTC/USD");
+    assert.equal(metadata.interval, "1d");
+    assert.equal(metadata.timezone, "UTC");
+    assert.ok(metadata.source_provider);
+    assert.ok(metadata.source_repository);
+    assert.ok(bars.length > 1000);
+    assert.ok(bars.every(x => Number.isFinite(x.open) && Number.isFinite(x.close)));
+  }
+});
 
-function run(daily, start, end) {
-  const filtered = daily.filter(x => x.date >= start && x.date <= end);
-  return runFibRegimeStrategy(aggregateDailyToWeekly(filtered));
-}
-
-test("frozen strategy is reasonably stable across Bitstamp vs Yahoo Finance BTC data", () => {
-  const yahoo = parseYahoo(fs.readFileSync(new URL("./data/BTC-USD-yahoo-2014-2023.csv", import.meta.url), "utf8"));
-  const bitstamp = parseBitstamp(fs.readFileSync(new URL("./data/BTCUSD-bitstamp-2012-2026.csv", import.meta.url), "utf8"));
-
+test("frozen strategy remains reasonably stable across independent BTC providers", () => {
   const start = "2014-09-18";
-  const end = yahoo.at(-1).date; // 2023-07-20
+  const yahoo = parseCanonicalMarketCsv(yahooCsv);
+  const end = yahoo.bars.at(-1).date; // 2023-07-20
 
-  const y = run(yahoo, start, end);
-  const b = run(bitstamp, start, end);
+  const y = runFibRegimeStrategyFromCanonicalCsv(yahooCsv, {}, { start, end });
+  const b = runFibRegimeStrategyFromCanonicalCsv(bitstampCsv, {}, { start, end });
 
-  // Frozen expected values for the current strategy and frozen datasets.
+  // Frozen expected values for current strategy + frozen source files.
   assert.ok(Math.abs(y.btcEquivalent - 4.3808331750109675) < 1e-9);
   assert.ok(Math.abs(b.btcEquivalent - 5.045598276852519) < 1e-9);
 
-  // Cross-provider robustness guardrail: same rules should retain most of the edge.
+  // Provider perturbation guardrail: retain at least 80% of baseline edge.
   assert.ok(y.btcEquivalent >= b.btcEquivalent * 0.80);
+});
+
+test("canonical strategy execution is next-week-open, never same-bar close", () => {
+  const r = runFibRegimeStrategyFromCanonicalCsv(bitstampCsv, {}, {
+    start: "2014-09-18",
+    end: "2023-07-20",
+  });
+  assert.ok(r.trades.length > 0);
+  for (const trade of r.trades) {
+    assert.notEqual(trade.signalWeek, trade.executionWeek);
+  }
 });
