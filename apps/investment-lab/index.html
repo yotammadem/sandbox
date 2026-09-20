@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#0c111b">
   <meta name="color-scheme" content="dark">
   <title>Investment Lab · BTC / USD</title>
-  <meta name="description" content="A quiet workspace for exploring real market history. Interactive Bitcoin candlestick charts.">
+  <meta name="description" content="Explore Bitcoin market history and simulate trades against historical candles.">
   <link rel="stylesheet" href="./styles.css">
   <script type="module" src="./src/app.js"></script>
 </head>
@@ -16,23 +16,74 @@
     <a class="sandbox-link" href="../">SafeArtifact ↗</a>
   </header>
   <main>
-    <div class="intro"><div><p class="eyebrow">MARKET EXPLORER</p><h1>A closer look at the market.</h1></div><span class="snapshot"><i></i> Historical snapshot</span></div>
-    <section class="market" aria-label="Bitcoin market chart">
-      <div class="asset-header">
-        <div class="asset"><span class="bitcoin" aria-hidden="true"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 5h7a3.5 3.5 0 0 1 0 7H8m0 0h7a3.5 3.5 0 0 1 0 7H7M9 5v14M10 2v3m4-3v3m-4 14v3m4-3v3"/></svg></span><div><h2>Bitcoin <span>BTC / USD</span></h2><p>Bitstamp · US Dollar</p></div></div>
-        <div class="quote"><div id="price">—</div><div id="change">Loading daily close…</div></div>
+    <div class="intro"><div><p class="eyebrow">MARKET EXPLORER</p><h1>Explore the market. Test the trade.</h1></div><span class="snapshot"><i></i> Historical snapshot</span></div>
+
+    <div class="workspace">
+      <aside class="simulation-panel" aria-label="Trade simulation">
+        <div class="simulation-heading"><div><p class="eyebrow">TRADE SIMULATION</p><h2>Paper portfolio</h2></div><span class="simulation-note">No fees · No tax</span></div>
+        <div class="summary-grid" aria-label="Portfolio summary">
+          <div class="summary-item"><span>USD in</span><strong id="total-usd-in">$0.00</strong></div>
+          <div class="summary-item"><span>USD out</span><strong id="total-usd-out">$0.00</strong></div>
+          <div class="summary-item"><span>USD balance</span><strong id="usd-balance">$0.00</strong></div>
+          <div class="summary-item"><span>BTC balance</span><strong id="btc-balance">0 BTC</strong></div>
+        </div>
+        <button class="primary-action" id="add-transaction">+ Add transaction</button>
+        <button class="secondary-action compact-manage" id="manage-transactions">Manage transactions</button>
+        <div class="transaction-list-wrap">
+          <div class="list-heading"><span>Transactions</span><span id="transaction-count">0</span></div>
+          <div id="transaction-list" class="transaction-list"><p class="empty-state">No transactions yet. Select a candle and add one.</p></div>
+        </div>
+      </aside>
+
+      <div class="market-column">
+        <section class="market" aria-label="Bitcoin market chart">
+          <div class="asset-header">
+            <div class="asset"><span class="bitcoin" aria-hidden="true"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 5h7a3.5 3.5 0 0 1 0 7H8m0 0h7a3.5 3.5 0 0 1 0 7H7M9 5v14M10 2v3m4-3v3m-4 14v3m4-3v3"/></svg></span><div><h2>Bitcoin <span>BTC / USD</span></h2><p>Bitstamp · US Dollar</p></div></div>
+            <div class="quote"><div id="price">—</div><div id="change">Loading daily close…</div></div>
+          </div>
+          <div class="toolbar">
+            <div class="tool-group"><span class="tool-label">Candle</span><div class="segmented" id="intervals" aria-label="Candle interval"><button data-interval="1D" aria-pressed="true">1D</button><button data-interval="1W" aria-pressed="false">1W</button><button data-interval="1M" aria-pressed="false">1M</button></div></div>
+            <div class="chart-actions"><button id="log" aria-pressed="false" title="Use a logarithmic price scale">Log scale</button><span class="divider"></span><button id="zoom-out" aria-label="Zoom out">−</button><button id="zoom-in" aria-label="Zoom in">+</button><button id="reset" title="Reset to the latest six months">Reset</button></div>
+          </div>
+          <div class="readout" aria-label="Selected candle details">
+            <div class="candle-date"><span id="candle-date">Loading market history…</span><div class="candle-meta"><small id="candle-note">UTC</small><button id="unpin-candle" class="inline-button" hidden>Unpin</button></div></div>
+            <dl><div><dt>Open</dt><dd id="open">—</dd></div><div><dt>High</dt><dd id="high">—</dd></div><div><dt>Low</dt><dd id="low">—</dd></div><div><dt>Close</dt><dd id="close">—</dd></div></dl>
+          </div>
+          <div class="chart-wrap"><div id="chart" role="img" aria-label="Interactive Bitcoin dollar candlestick chart. Click a candle to pin it. Drag to pan, pinch or use the zoom buttons to zoom. Use the candle navigator below for keyboard access."></div><div id="loading" role="status">Loading Bitcoin history…</div></div>
+          <div class="rangebar"><div class="ranges" id="ranges" aria-label="Visible time range"><button data-range="30">1M</button><button data-range="90">3M</button><button data-range="180" aria-pressed="true">6M</button><button data-range="365">1Y</button><button data-range="1095">3Y</button><button data-range="all">All</button></div><span id="visible-range">—</span></div>
+          <div class="navigator"><label for="candle-index">Inspect candle</label><input type="range" id="candle-index" min="0" max="0" value="0" aria-label="Inspect historical candle"><button id="latest">Latest</button></div>
+        </section>
+        <div class="below-chart"><p>Desktop: click a candle to pin it · Drag to explore · Scroll or pinch to zoom</p><p>Green: close ≥ open <span class="legend-up">●</span> &nbsp; Red: close &lt; open <span class="legend-down">●</span></p></div>
       </div>
-      <div class="toolbar">
-        <div class="tool-group"><span class="tool-label">Candle</span><div class="segmented" id="intervals" aria-label="Candle interval"><button data-interval="1D" aria-pressed="true">1D</button><button data-interval="1W" aria-pressed="false">1W</button><button data-interval="1M" aria-pressed="false">1M</button></div></div>
-        <div class="chart-actions"><button id="log" aria-pressed="false" title="Use a logarithmic price scale">Log scale</button><span class="divider"></span><button id="zoom-out" aria-label="Zoom out">−</button><button id="zoom-in" aria-label="Zoom in">+</button><button id="reset" title="Reset to the latest six months">Reset</button></div>
+    </div>
+
+    <dialog id="transaction-dialog" class="transaction-dialog">
+      <div class="dialog-shell">
+        <div class="dialog-header"><div><p class="eyebrow">TRADE SIMULATION</p><h2 id="dialog-title">Add transaction</h2></div><button id="close-dialog" class="icon-button" aria-label="Close transaction editor">×</button></div>
+        <div class="dialog-body">
+          <form id="transaction-form" class="transaction-form" novalidate>
+            <input type="hidden" id="transaction-id">
+            <div class="candle-context"><span>Selected candle</span><strong id="transaction-candle-date">—</strong><small id="transaction-candle-range">—</small></div>
+            <label class="field"><span>Transaction</span><select id="transaction-type"><option value="deposit_usd">Deposit USD</option><option value="withdraw_usd">Withdraw USD</option><option value="buy_btc">Buy Bitcoin</option><option value="sell_btc">Sell Bitcoin</option></select></label>
+            <div id="usd-fields"><label class="field"><span>USD amount</span><input id="usd-amount" type="number" inputmode="decimal" min="0" step="0.01" placeholder="10,000"></label></div>
+            <div id="trade-fields" hidden>
+              <label class="field"><span>BTC amount</span><input id="btc-amount" type="number" inputmode="decimal" min="0" step="0.00000001" placeholder="0.10"></label>
+              <label class="field"><span>Price (USD / BTC)</span><input id="btc-price" type="number" inputmode="decimal" min="0" step="0.01"></label>
+              <div class="price-presets" aria-label="Candle price presets"><button type="button" data-price-point="low">Low</button><button type="button" data-price-point="mid">Mid</button><button type="button" data-price-point="high">High</button></div>
+              <div class="trade-notional"><span>Trade value</span><strong id="trade-value">$0.00</strong></div>
+            </div>
+            <p id="transaction-error" class="form-error" role="alert" hidden></p>
+            <div class="form-actions"><button type="button" id="cancel-transaction">Cancel</button><button type="submit" class="primary-action">Save transaction</button></div>
+          </form>
+          <section class="dialog-ledger" aria-label="Transaction ledger">
+            <div class="list-heading"><span>Ledger</span><span id="dialog-transaction-count">0</span></div>
+            <div class="ledger-scroll"><table class="ledger-table"><thead><tr><th>Date</th><th>Action</th><th>Amount</th><th>Price</th><th>USD after</th><th>BTC after</th><th></th></tr></thead><tbody id="transaction-table"></tbody></table><p id="dialog-empty" class="empty-state">No transactions yet.</p></div>
+          </section>
+        </div>
       </div>
-      <div class="readout" aria-label="Selected candle details"><div class="candle-date"><span id="candle-date">Loading market history…</span><small id="candle-note">UTC</small></div><dl><div><dt>Open</dt><dd id="open">—</dd></div><div><dt>High</dt><dd id="high">—</dd></div><div><dt>Low</dt><dd id="low">—</dd></div><div><dt>Close</dt><dd id="close">—</dd></div></dl></div>
-      <div class="chart-wrap"><div id="chart" role="img" aria-label="Interactive Bitcoin dollar candlestick chart. Drag to pan, pinch or use the zoom buttons to zoom. Use the candle navigator below for keyboard access."></div><div id="loading" role="status">Loading Bitcoin history…</div></div>
-      <div class="rangebar"><div class="ranges" id="ranges" aria-label="Visible time range"><button data-range="30">1M</button><button data-range="90">3M</button><button data-range="180" aria-pressed="true">6M</button><button data-range="365">1Y</button><button data-range="1095">3Y</button><button data-range="all">All</button></div><span id="visible-range">—</span></div>
-      <div class="navigator"><label for="candle-index">Inspect candle</label><input type="range" id="candle-index" min="0" max="0" value="0" aria-label="Inspect historical candle"><button id="latest">Latest</button></div>
-    </section>
-    <div class="below-chart"><p>Drag to explore · Scroll or pinch to zoom · Hover or touch & hold for candle details</p><p>Green: close ≥ open <span class="legend-up">●</span> &nbsp; Red: close &lt; open <span class="legend-down">●</span></p></div>
-    <section class="data-card"><span class="data-icon" aria-hidden="true">◷</span><div><h3>Real history. Room to experiment.</h3><p id="data-summary">Preparing source information…</p><p>Daily source data; weekly and monthly candles are aggregated in your browser. Boundary periods may be incomplete. This version explores charts; simulated trading comes next.</p></div><a href="./btc-usd.csv" download>Download data ↓</a></section>
+    </dialog>
+
+    <section class="data-card"><span class="data-icon" aria-hidden="true">◷</span><div><h3>Real history. Local simulation.</h3><p id="data-summary">Preparing source information…</p><p>Daily source data; weekly and monthly candles are aggregated in your browser. Simulated transactions are stored only in this browser. No fees or tax are modeled.</p></div><a href="./btc-usd.csv" download>Download data ↓</a></section>
     <footer><span>Investment Lab / Sandbox</span><span>Charts by <a href="https://www.tradingview.com/" target="_blank" rel="noreferrer">TradingView Lightweight Charts™</a> · <a href="./vendor/NOTICE">Notice</a> · <a href="./vendor/LICENSE">License</a></span></footer>
   </main>
 </body>
