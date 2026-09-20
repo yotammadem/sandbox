@@ -1,22 +1,37 @@
 import { createChart, CandlestickSeries, PriceScaleMode, CrosshairMode } from '../vendor/charts.mjs';
 import { parseCSV, aggregate } from './data.js';
+import { initTradeSimulation } from './trade-ui.js';
 const $ = id => document.getElementById(id);
 const format = value => value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const iso = time => typeof time === 'string' ? time : `${time.year}-${String(time.month).padStart(2, '0')}-${String(time.day).padStart(2, '0')}`;
 const pretty = time => new Date(`${iso(time)}T00:00:00Z`).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC' });
-let chart, series, all, candles, interval = '1D', range = '180', selected, changing = false;
+let chart, series, all, candles, interval = '1D', range = '180', selected, changing = false, pinned = false;
 const buttons = [...document.querySelectorAll('button')];
 buttons.forEach(button => button.disabled = true);
 $('candle-index').disabled = true;
+initTradeSimulation({ getSelectedCandle: () => selected, getInterval: () => interval });
 function inspect(candle, index) {
   if (!candle) return;
   selected = candle;
   $('candle-date').textContent = candle.start && candle.start !== candle.end ? `${pretty(candle.start)} – ${pretty(candle.end)}` : pretty(candle.time);
-  $('candle-note').textContent = interval === '1D' ? 'Daily · UTC' : `${interval === '1W' ? 'Weekly' : 'Monthly'} · UTC`;
+  const cadence = interval === '1D' ? 'Daily' : interval === '1W' ? 'Weekly' : 'Monthly';
+  $('candle-note').textContent = `${cadence} · UTC${pinned ? ' · pinned' : ''}`;
+  $('unpin-candle').hidden = !pinned;
   for (const key of ['open', 'high', 'low', 'close']) $(key).textContent = '$' + format(candle[key]);
   $('close').className = candle.close >= candle.open ? 'up' : 'down';
   $('candle-index').value = index ?? candles.indexOf(candle);
   $('candle-index').setAttribute('aria-valuetext', `${$('candle-date').textContent}, close ${format(candle.close)} dollars`);
+}
+function findCandle(time) {
+  const key = iso(time);
+  const index = candles.findIndex(candle => candle.time === key);
+  return index >= 0 ? { candle: candles[index], index } : null;
+}
+function unpin() {
+  pinned = false;
+  const index = candles?.indexOf(selected);
+  if (index >= 0) inspect(selected, index);
+  else $('unpin-candle').hidden = true;
 }
 function updatePressed() {
   document.querySelectorAll('[data-interval]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.interval === interval)));
@@ -62,10 +77,17 @@ async function init() {
   series.setData(candles);
   setRange(); inspect(candles.at(-1));
   chart.subscribeCrosshairMove(param => {
+    if (pinned || !param.time) return;
+    const match = findCandle(param.time);
+    if (match) inspect(match.candle, match.index);
+  });
+  chart.subscribeClick(param => {
     if (!param.time) return;
-    const key = iso(param.time);
-    const index = candles.findIndex(c => c.time === key);
-    if (index >= 0) inspect(candles[index], index);
+    const match = findCandle(param.time);
+    if (!match) return;
+    pinned = true;
+    inspect(match.candle, match.index);
+    chart.setCrosshairPosition(match.candle.close, match.candle.time, series);
   });
   chart.timeScale().subscribeVisibleTimeRangeChange(visible => {
     if (visible) $('visible-range').textContent = `${pretty(visible.from)} — ${pretty(visible.to)} · UTC`;
@@ -93,6 +115,7 @@ $('intervals').addEventListener('click', event => {
   const visible = chart.timeScale().getVisibleRange();
   interval = next; candles = aggregate(all, interval);
   series.setData(candles);
+  unpin();
   if (range) setRange();
   else if (visible) chart.timeScale().setVisibleRange(visible);
   $('candle-index').max = candles.length - 1;
@@ -101,14 +124,14 @@ $('intervals').addEventListener('click', event => {
 $('ranges').addEventListener('click', event => { if (event.target.dataset.range) { range = event.target.dataset.range; setRange(); } });
 $('zoom-in').onclick = () => zoom(0.65);
 $('zoom-out').onclick = () => zoom(1.5);
-$('reset').onclick = () => { range = '180'; setRange(); inspect(candles.at(-1)); };
+$('reset').onclick = () => { range = '180'; unpin(); setRange(); inspect(candles.at(-1)); chart.clearCrosshairPosition(); };
 $('log').onclick = () => {
   const active = $('log').getAttribute('aria-pressed') !== 'true';
   chart.priceScale('right').applyOptions({ mode: active ? PriceScaleMode.Logarithmic : PriceScaleMode.Normal });
   $('log').setAttribute('aria-pressed', String(active));
 };
 $('candle-index').oninput = event => {
-  const index = Number(event.target.value); inspect(candles[index], index);
+  const index = Number(event.target.value); pinned = true; inspect(candles[index], index);
   const visible = chart.timeScale().getVisibleLogicalRange();
   if (visible && (index < visible.from || index > visible.to)) {
     const width = visible.to - visible.from;
@@ -117,7 +140,8 @@ $('candle-index').oninput = event => {
   }
   chart.setCrosshairPosition(selected.close, selected.time, series);
 };
-$('latest').onclick = () => { range = '180'; setRange(); inspect(candles.at(-1)); chart.clearCrosshairPosition(); };
+$('latest').onclick = () => { range = '180'; unpin(); setRange(); inspect(candles.at(-1)); chart.clearCrosshairPosition(); };
+$('unpin-candle').onclick = () => { unpin(); chart.clearCrosshairPosition(); };
 init().catch(error => {
   console.error(error);
   $('loading').textContent = 'Market history could not be loaded. Please reload the page to try again.';
