@@ -16,6 +16,7 @@ A lightweight workspace for small applications, shared packages, and disposable 
 ## Live demos
 
 - [SafeArtifact Playground](https://yotammadem.github.io/sandbox/)
+- [Investment Lab — Bitcoin candlestick explorer](https://yotammadem.github.io/sandbox/investment-lab/)
 
 ## Requirements
 

@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0c111b">
+  <meta name="color-scheme" content="dark">
+  <title>Investment Lab · BTC / USD</title>
+  <meta name="description" content="A quiet workspace for exploring real market history. Interactive Bitcoin candlestick charts.">
+  <link rel="stylesheet" href="./styles.css">
+  <script type="module" src="./src/app.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="./"><span class="brand-icon" aria-hidden="true">▥</span> Investment <strong>Lab</strong><span class="badge">POC</span></a>
+    <a class="sandbox-link" href="../">SafeArtifact ↗</a>
+  </header>
+  <main>
+    <div class="intro"><div><p class="eyebrow">MARKET EXPLORER</p><h1>A closer look at the market.</h1></div><span class="snapshot"><i></i> Historical snapshot</span></div>
+    <section class="market" aria-label="Bitcoin market chart">
+      <div class="asset-header">
+        <div class="asset"><span class="bitcoin" aria-hidden="true"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 5h7a3.5 3.5 0 0 1 0 7H8m0 0h7a3.5 3.5 0 0 1 0 7H7M9 5v14M10 2v3m4-3v3m-4 14v3m4-3v3"/></svg></span><div><h2>Bitcoin <span>BTC / USD</span></h2><p>Bitstamp · US Dollar</p></div></div>
+        <div class="quote"><div id="price">—</div><div id="change">Loading daily close…</div></div>
+      </div>
+      <div class="toolbar">
+        <div class="tool-group"><span class="tool-label">Candle</span><div class="segmented" id="intervals" aria-label="Candle interval"><button data-interval="1D" aria-pressed="true">1D</button><button data-interval="1W" aria-pressed="false">1W</button><button data-interval="1M" aria-pressed="false">1M</button></div></div>
+        <div class="chart-actions"><button id="log" aria-pressed="false" title="Use a logarithmic price scale">Log scale</button><span class="divider"></span><button id="zoom-out" aria-label="Zoom out">−</button><button id="zoom-in" aria-label="Zoom in">+</button><button id="reset" title="Reset to the latest six months">Reset</button></div>
+      </div>
+      <div class="readout" aria-label="Selected candle details"><div class="candle-date"><span id="candle-date">Loading market history…</span><small id="candle-note">UTC</small></div><dl><div><dt>Open</dt><dd id="open">—</dd></div><div><dt>High</dt><dd id="high">—</dd></div><div><dt>Low</dt><dd id="low">—</dd></div><div><dt>Close</dt><dd id="close">—</dd></div></dl></div>
+      <div class="chart-wrap"><div id="chart" role="img" aria-label="Interactive Bitcoin dollar candlestick chart. Drag to pan, pinch or use the zoom buttons to zoom. Use the candle navigator below for keyboard access."></div><div id="loading" role="status">Loading Bitcoin history…</div></div>
+      <div class="rangebar"><div class="ranges" id="ranges" aria-label="Visible time range"><button data-range="30">1M</button><button data-range="90">3M</button><button data-range="180" aria-pressed="true">6M</button><button data-range="365">1Y</button><button data-range="1095">3Y</button><button data-range="all">All</button></div><span id="visible-range">—</span></div>
+      <div class="navigator"><label for="candle-index">Inspect candle</label><input type="range" id="candle-index" min="0" max="0" value="0" aria-label="Inspect historical candle"><button id="latest">Latest</button></div>
+    </section>
+    <div class="below-chart"><p>Drag to explore · Scroll or pinch to zoom · Hover or touch & hold for candle details</p><p>Green: close ≥ open <span class="legend-up">●</span> &nbsp; Red: close &lt; open <span class="legend-down">●</span></p></div>
+    <section class="data-card"><span class="data-icon" aria-hidden="true">◷</span><div><h3>Real history. Room to experiment.</h3><p id="data-summary">Preparing source information…</p><p>Daily source data; weekly and monthly candles are aggregated in your browser. Boundary periods may be incomplete. This version explores charts; simulated trading comes next.</p></div><a href="./btc-usd.csv" download>Download data ↓</a></section>
+    <footer><span>Investment Lab / Sandbox</span><span>Charts by <a href="https://www.tradingview.com/" target="_blank" rel="noreferrer">TradingView Lightweight Charts™</a> · <a href="./vendor/NOTICE">Notice</a> · <a href="./vendor/LICENSE">License</a></span></footer>
+  </main>
+</body>
+</html>

@@ -6,6 +6,8 @@ on:
       - main
     paths:
       - apps/safe-artifact-playground/**
+      - apps/investment-lab/**
+      - experiments/btc-regime-validation/sources/btc-usd-bitstamp.csv
       - package.json
       - package-lock.json
       - .github/workflows/pages.yml
@@ -44,6 +46,15 @@ jobs:
 
       - name: Build playground
         run: npm run build --workspace=@sandbox/safe-artifact-playground
+
+      - name: Test investment lab
+        run: npm test --workspace=@sandbox/investment-lab
+
+      - name: Build investment lab
+        run: npm run build --workspace=@sandbox/investment-lab
+
+      - name: Assemble experiments
+        run: cp -R apps/investment-lab/dist apps/safe-artifact-playground/dist/investment-lab
 
       - name: Configure Pages
         uses: actions/configure-pages@v5
