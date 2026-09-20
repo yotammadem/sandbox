@@ -62,7 +62,7 @@ export function initTradeSimulation({ getSelectedCandle, getInterval }) {
     const cash = transactionCash(row);
     const price = row.price ? ' · @ $' + format(row.price) : '';
     return '<article class="transaction-row">' +
-      '<div class="transaction-row-head"><span>' + pretty(row.date) + '</span><button class="row-action" data-edit="' + row.id + '">Edit</button></div>' +
+      '<div class="transaction-row-head"><span>' + pretty(row.date) + '</span><span class="row-actions"><button class="row-action" data-edit="' + row.id + '">Edit</button><button class="row-action row-delete" data-delete="' + row.id + '">Delete</button></span></div>' +
       '<div class="transaction-row-main"><strong>' + transactionLabels[row.type] + '</strong><span class="' + typeClass(row.type) + '">' + transactionAmount(row) + '</span></div>' +
       '<div class="transaction-row-sub"><span>' + cash + price + '</span><span>$' + format(row.usdBalance) + ' · ' + formatBtc(row.btcBalance) + ' BTC</span></div>' +
       '</article>';
