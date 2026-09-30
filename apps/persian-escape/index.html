@@ -1,0 +1,506 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no" />
+<title>Persian Escape</title>
+<style>
+  :root { color-scheme: dark; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; min-height: 100%; background: #080608; color: #f7e6b2; overflow: hidden; }
+  body { display: grid; place-items: center; }
+  #shell { width: min(100vw, 1100px); height: 100svh; display: grid; grid-template-rows: auto 1fr auto; padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom); }
+  header { min-height: 48px; display: flex; align-items: center; justify-content: space-between; padding: 8px 14px; gap: 12px; background: #120b12; border-bottom: 1px solid #3a2432; }
+  h1 { font-size: clamp(14px, 3vw, 18px); margin: 0; letter-spacing: .06em; font-weight: 800; color: #ffd886; }
+  #status { font-size: 12px; opacity: .85; text-align: right; }
+  #stageWrap { min-height: 0; display: grid; place-items: center; background: radial-gradient(circle at 50% 30%, #20101b, #050405 72%); position: relative; }
+  canvas { width: 100%; height: 100%; max-height: 720px; image-rendering: pixelated; touch-action: none; }
+  #hint { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); padding: 7px 10px; border-radius: 8px; background: #0d090dd9; border: 1px solid #6c4735; font-size: 11px; white-space: nowrap; pointer-events: none; opacity: .95; }
+  #controls { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; padding: 10px 14px 12px; background: #120b12; border-top: 1px solid #3a2432; user-select: none; }
+  .cluster { display: flex; gap: 9px; align-items: center; }
+  .cluster.right { justify-content: flex-end; }
+  button { width: 58px; height: 48px; border: 1px solid #77513b; border-bottom-width: 3px; border-radius: 10px; background: #24141d; color: #ffe2a4; font: 700 18px/1 ui-monospace, monospace; touch-action: none; }
+  button:active, button.down { transform: translateY(2px); border-bottom-width: 1px; background: #3b2130; }
+  button.action { width: 76px; font-size: 12px; letter-spacing: .05em; }
+  @media (hover:hover) and (pointer:fine) {
+    #controls { opacity: .5; }
+    #controls:hover { opacity: 1; }
+  }
+  @media (orientation: landscape) and (max-height: 560px) {
+    header { min-height: 34px; padding: 4px 10px; }
+    #controls { position: absolute; inset: auto 0 max(4px, env(safe-area-inset-bottom)); background: transparent; border: 0; pointer-events: none; padding: 6px 12px; }
+    #controls button { pointer-events: auto; background: #160f16cc; }
+    #shell { position: relative; grid-template-rows: auto 1fr; }
+  }
+</style>
+</head>
+<body>
+<div id="shell">
+  <header>
+    <h1>PERSIAN ESCAPE</h1>
+    <div id="status">Lives: ♥♥♥ · Gate: CLOSED</div>
+  </header>
+  <div id="stageWrap">
+    <canvas id="game" width="960" height="600" aria-label="Persian Escape game"></canvas>
+    <div id="hint">Reach the gold door · step on the plate to open the gate</div>
+  </div>
+  <div id="controls">
+    <div class="cluster">
+      <button data-key="left" aria-label="Left">◀</button>
+      <button data-key="right" aria-label="Right">▶</button>
+      <button data-key="down" aria-label="Crouch">▼</button>
+    </div>
+    <div class="cluster right">
+      <button class="action" data-key="jump">JUMP</button>
+      <button class="action" data-key="restart">RESTART</button>
+    </div>
+  </div>
+</div>
+<script>
+(() => {
+  "use strict";
+
+  const canvas = document.getElementById("game");
+  const ctx = canvas.getContext("2d");
+  const status = document.getElementById("status");
+  const hint = document.getElementById("hint");
+
+  const W = 960, H = 600;
+  const TILE = 48;
+  const keys = { left:false, right:false, down:false, jump:false };
+  let last = performance.now();
+  let accumulator = 0;
+  const STEP = 1/120;
+
+  const world = {
+    gravity: 1500,
+    gateOpen: false,
+    platePressed: false,
+    won: false,
+    time: 0
+  };
+
+  const solids = [
+    // top floor, with a pit between x 432..528
+    {x:0,y:216,w:432,h:32},
+    {x:528,y:216,w:432,h:32},
+    // middle floor
+    {x:0,y:408,w:960,h:32},
+    // bottom floor
+    {x:0,y:552,w:960,h:48},
+
+    // walls / ledges
+    {x:0,y:0,w:24,h:600},
+    {x:936,y:0,w:24,h:600},
+    {x:120,y:360,w:168,h:16},
+    {x:624,y:360,w:120,h:16},
+    {x:792,y:504,w:96,h:16}
+  ];
+
+  const spikes = [
+    {x:336,y:388,w:72,h:20},
+    {x:564,y:532,w:86,h:20}
+  ];
+
+  const plate = {x:175,y:388,w:46,h:10};
+  const gate = {x:690,y:264,w:24,h:144};
+  const exit = {x:846,y:456,w:56,h:96};
+
+  const player = {
+    x:72, y:160, w:28, h:54,
+    vx:0, vy:0,
+    speed:245,
+    jumpSpeed:570,
+    onGround:false,
+    crouch:false,
+    lives:3,
+    invuln:0,
+    spawnX:72, spawnY:160
+  };
+
+  function resetPlayer(full=false) {
+    if (full) {
+      player.lives = 3;
+      world.won = false;
+      world.time = 0;
+      world.gateOpen = false;
+      world.platePressed = false;
+    }
+    player.x = player.spawnX;
+    player.y = player.spawnY;
+    player.vx = player.vy = 0;
+    player.invuln = .9;
+  }
+
+  function rectsOverlap(a,b) {
+    return a.x < b.x+b.w && a.x+a.w > b.x && a.y < b.y+b.h && a.y+a.h > b.y;
+  }
+
+  function currentSolids() {
+    if (!world.gateOpen) return solids.concat(gate);
+    return solids;
+  }
+
+  function moveAxis(axis, amount) {
+    player[axis] += amount;
+    const list = currentSolids();
+    for (const s of list) {
+      if (!rectsOverlap(player,s)) continue;
+      if (axis === "x") {
+        if (amount > 0) player.x = s.x - player.w;
+        else if (amount < 0) player.x = s.x + s.w;
+        player.vx = 0;
+      } else {
+        if (amount > 0) {
+          player.y = s.y - player.h;
+          player.vy = 0;
+          player.onGround = true;
+        } else if (amount < 0) {
+          player.y = s.y + s.h;
+          player.vy = 0;
+        }
+      }
+    }
+  }
+
+  function kill(reason) {
+    if (player.invuln > 0 || world.won) return;
+    player.lives--;
+    flashHint(reason);
+    if (player.lives <= 0) {
+      player.lives = 3;
+      world.gateOpen = false;
+      world.platePressed = false;
+    }
+    resetPlayer(false);
+  }
+
+  let hintTimer = 0;
+  function flashHint(text) {
+    hint.textContent = text;
+    hintTimer = 2.2;
+  }
+
+  function update(dt) {
+    world.time += dt;
+    if (player.invuln > 0) player.invuln -= dt;
+    if (hintTimer > 0) {
+      hintTimer -= dt;
+      if (hintTimer <= 0 && !world.won) hint.textContent = "Reach the gold door · step on the plate to open the gate";
+    }
+
+    if (world.won) {
+      player.vx *= Math.pow(.001, dt);
+      updateStatus();
+      return;
+    }
+
+    let target = 0;
+    if (keys.left) target -= player.speed;
+    if (keys.right) target += player.speed;
+
+    const accel = player.onGround ? 1700 : 900;
+    const diff = target - player.vx;
+    const change = Math.max(-accel*dt, Math.min(accel*dt, diff));
+    player.vx += change;
+
+    player.crouch = keys.down && player.onGround;
+    const originalH = player.h;
+    if (player.crouch) player.h = 36;
+    else player.h = 54;
+    if (originalH !== player.h && !player.crouch) player.y -= 18;
+
+    if (keys.jump && player.onGround && !player.crouch) {
+      player.vy = -player.jumpSpeed;
+      player.onGround = false;
+    }
+    keys.jump = false;
+
+    player.vy += world.gravity * dt;
+    player.vy = Math.min(player.vy, 850);
+
+    player.onGround = false;
+    moveAxis("x", player.vx*dt);
+    moveAxis("y", player.vy*dt);
+
+    // pressure plate permanently opens this prototype gate
+    const feet = {x:player.x+4,y:player.y+player.h-3,w:player.w-8,h:8};
+    if (!world.platePressed && rectsOverlap(feet, plate)) {
+      world.platePressed = true;
+      world.gateOpen = true;
+      flashHint("CLANK — the gate opens!");
+    }
+
+    for (const s of spikes) {
+      if (rectsOverlap(player, s)) {
+        kill("The spikes got you. Try a running jump.");
+        break;
+      }
+    }
+
+    if (player.y > H + 80) kill("You fell into the dungeon.");
+    if (rectsOverlap(player, exit)) {
+      world.won = true;
+      player.vx = 0;
+      hint.textContent = "ESCAPED! Tap RESTART to play again.";
+    }
+
+    updateStatus();
+  }
+
+  function updateStatus() {
+    const hearts = "♥".repeat(player.lives) + "♡".repeat(Math.max(0,3-player.lives));
+    status.textContent = "Lives: " + hearts + " · Gate: " + (world.gateOpen ? "OPEN" : "CLOSED");
+  }
+
+  function pxRect(x,y,w,h,fill,stroke) {
+    ctx.fillStyle = fill;
+    ctx.fillRect(Math.round(x),Math.round(y),Math.round(w),Math.round(h));
+    if (stroke) {
+      ctx.strokeStyle = stroke;
+      ctx.lineWidth = 2;
+      ctx.strokeRect(Math.round(x)+1,Math.round(y)+1,Math.round(w)-2,Math.round(h)-2);
+    }
+  }
+
+  function drawBackground() {
+    ctx.fillStyle = "#09070a";
+    ctx.fillRect(0,0,W,H);
+
+    // palace wall
+    ctx.fillStyle = "#2a1823";
+    ctx.fillRect(0,0,W,H);
+    for (let y=18; y<H; y+=48) {
+      for (let x=(y/48)%2?0:-24; x<W; x+=72) {
+        ctx.fillStyle = "#321e28";
+        ctx.fillRect(x,y,68,30);
+        ctx.fillStyle = "#1d1119";
+        ctx.fillRect(x,y+28,68,3);
+      }
+    }
+
+    // arches
+    for (const ax of [85, 372, 758]) {
+      ctx.fillStyle = "#120c12";
+      ctx.beginPath();
+      ctx.arc(ax,112,50,Math.PI,0);
+      ctx.rect(ax-50,112,100,80);
+      ctx.fill();
+      ctx.fillStyle = "#ad6b34";
+      ctx.fillRect(ax-54,108,8,96);
+      ctx.fillRect(ax+46,108,8,96);
+    }
+
+    // torches
+    for (const x of [270, 620]) {
+      ctx.fillStyle = "#5f3927";
+      ctx.fillRect(x-3,100,6,28);
+      const flicker = Math.sin(world.time*12+x)*3;
+      ctx.fillStyle = "#ffbb37";
+      ctx.beginPath();
+      ctx.moveTo(x,93-flicker);
+      ctx.quadraticCurveTo(x-12,107,x,114);
+      ctx.quadraticCurveTo(x+12,107,x,93-flicker);
+      ctx.fill();
+      ctx.fillStyle = "#ff5c26";
+      ctx.fillRect(x-3,103,6,8);
+    }
+  }
+
+  function drawStone(r) {
+    pxRect(r.x,r.y,r.w,r.h,"#744737","#2d1b1c");
+    ctx.fillStyle = "#9c6545";
+    ctx.fillRect(r.x+2,r.y+3,r.w-4,5);
+    ctx.fillStyle = "#382124";
+    for (let x=r.x+TILE; x<r.x+r.w; x+=TILE) ctx.fillRect(x-1,r.y,2,r.h);
+  }
+
+  function drawGate() {
+    if (world.gateOpen) {
+      ctx.globalAlpha = .45;
+      pxRect(gate.x,gate.y-118,gate.w,gate.h,"#9a7550");
+      ctx.globalAlpha = 1;
+      return;
+    }
+    ctx.fillStyle = "#a8875f";
+    for (let x=gate.x+3;x<gate.x+gate.w;x+=7) ctx.fillRect(x,gate.y,3,gate.h);
+    ctx.fillStyle = "#5d472f";
+    ctx.fillRect(gate.x,gate.y+28,gate.w,7);
+    ctx.fillRect(gate.x,gate.y+98,gate.w,7);
+  }
+
+  function drawSpikes() {
+    for (const s of spikes) {
+      const count = Math.floor(s.w/16);
+      for (let i=0;i<count;i++) {
+        const x=s.x+i*(s.w/count);
+        ctx.fillStyle = "#d6c7a8";
+        ctx.beginPath();
+        ctx.moveTo(x,s.y+s.h);
+        ctx.lineTo(x+s.w/count/2,s.y);
+        ctx.lineTo(x+s.w/count,s.y+s.h);
+        ctx.fill();
+      }
+      ctx.fillStyle = "#4e3328";
+      ctx.fillRect(s.x,s.y+s.h-3,s.w,4);
+    }
+  }
+
+  function drawPlate() {
+    ctx.fillStyle = world.platePressed ? "#c58a31" : "#e4b64c";
+    ctx.fillRect(plate.x, plate.y + (world.platePressed ? 5 : 0), plate.w, world.platePressed ? 5 : 10);
+    ctx.fillStyle = "#51321f";
+    ctx.fillRect(plate.x-3,plate.y+8,plate.w+6,4);
+  }
+
+  function drawExit() {
+    ctx.fillStyle = "#5c2c2d";
+    ctx.fillRect(exit.x,exit.y,exit.w,exit.h);
+    ctx.fillStyle = "#d6a348";
+    ctx.fillRect(exit.x+5,exit.y+5,exit.w-10,exit.h-5);
+    ctx.fillStyle = "#3a1d22";
+    ctx.beginPath();
+    ctx.arc(exit.x+exit.w/2,exit.y+31,exit.w/2-10,Math.PI,0);
+    ctx.rect(exit.x+10,exit.y+31,exit.w-20,exit.h-31);
+    ctx.fill();
+    ctx.fillStyle = "#f1d16c";
+    ctx.fillRect(exit.x+39,exit.y+54,5,5);
+  }
+
+  function drawPlayer() {
+    const p=player;
+    if (p.invuln > 0 && Math.floor(world.time*14)%2===0) return;
+    const facing = player.vx < -5 ? -1 : 1;
+    const running = player.onGround && Math.abs(player.vx)>25;
+    const phase = Math.sin(world.time*13)*6;
+    const baseY = p.y + p.h;
+
+    // legs
+    ctx.strokeStyle = "#f0e2ca";
+    ctx.lineWidth = 7;
+    ctx.lineCap = "square";
+    ctx.beginPath();
+    ctx.moveTo(p.x+p.w/2-4, baseY-17);
+    ctx.lineTo(p.x+p.w/2-8+(running?phase:0), baseY-2);
+    ctx.moveTo(p.x+p.w/2+4, baseY-17);
+    ctx.lineTo(p.x+p.w/2+8-(running?phase:0), baseY-2);
+    ctx.stroke();
+
+    // torso
+    pxRect(p.x+5,p.y+14,p.w-10,p.h-30,"#f6ede0");
+    pxRect(p.x+3,p.y+22,p.w-6,9,"#8f2137");
+
+    // head
+    ctx.fillStyle = "#d6a06f";
+    ctx.beginPath();
+    ctx.arc(p.x+p.w/2,p.y+10,9,0,Math.PI*2);
+    ctx.fill();
+    // hair
+    ctx.fillStyle="#201216";
+    ctx.fillRect(p.x+p.w/2-9,p.y+3,18,5);
+
+    // arm
+    ctx.strokeStyle="#d6a06f";
+    ctx.lineWidth=5;
+    ctx.beginPath();
+    ctx.moveTo(p.x+p.w/2+facing*5,p.y+24);
+    ctx.lineTo(p.x+p.w/2+facing*16,p.y+30+(running?-phase*.4:0));
+    ctx.stroke();
+  }
+
+  function drawLabels() {
+    ctx.font = "bold 12px ui-monospace, monospace";
+    ctx.textAlign = "center";
+    ctx.fillStyle = "#e3b95d";
+    ctx.fillText("PLATE", plate.x+plate.w/2, plate.y-10);
+    ctx.fillText("EXIT", exit.x+exit.w/2, exit.y-12);
+    ctx.fillStyle = "#d1ad82";
+    ctx.fillText("RUN + JUMP", 372, 347);
+  }
+
+  function render() {
+    drawBackground();
+    solids.forEach(drawStone);
+    drawPlate();
+    drawSpikes();
+    drawGate();
+    drawExit();
+    drawLabels();
+    drawPlayer();
+
+    if (world.won) {
+      ctx.fillStyle = "#000a";
+      ctx.fillRect(0,0,W,H);
+      ctx.fillStyle = "#ffd66b";
+      ctx.textAlign = "center";
+      ctx.font = "bold 44px ui-monospace, monospace";
+      ctx.fillText("YOU ESCAPED",W/2,H/2-10);
+      ctx.font = "18px ui-monospace, monospace";
+      ctx.fillStyle = "#f8e8c5";
+      ctx.fillText("A tiny Prince-of-Persia-style mechanics prototype",W/2,H/2+28);
+    }
+  }
+
+  function frame(now) {
+    const dt = Math.min(.05,(now-last)/1000);
+    last=now;
+    accumulator += dt;
+    while (accumulator >= STEP) {
+      update(STEP);
+      accumulator -= STEP;
+    }
+    render();
+    requestAnimationFrame(frame);
+  }
+
+  const map = {
+    ArrowLeft:"left", KeyA:"left",
+    ArrowRight:"right", KeyD:"right",
+    ArrowDown:"down", KeyS:"down",
+    ArrowUp:"jump", KeyW:"jump", Space:"jump"
+  };
+
+  addEventListener("keydown", e => {
+    if (map[e.code]) {
+      e.preventDefault();
+      keys[map[e.code]]=true;
+    }
+    if (e.code==="KeyR") resetPlayer(true);
+  }, {passive:false});
+
+  addEventListener("keyup", e => {
+    if (map[e.code]) {
+      e.preventDefault();
+      if (map[e.code]!=="jump") keys[map[e.code]]=false;
+    }
+  }, {passive:false});
+
+  for (const btn of document.querySelectorAll("button[data-key]")) {
+    const k = btn.dataset.key;
+    const down = e => {
+      e.preventDefault();
+      btn.classList.add("down");
+      if (k==="restart") { resetPlayer(true); return; }
+      keys[k]=true;
+    };
+    const up = e => {
+      e.preventDefault();
+      btn.classList.remove("down");
+      if (k!=="jump" && k!=="restart") keys[k]=false;
+    };
+    btn.addEventListener("pointerdown",down);
+    btn.addEventListener("pointerup",up);
+    btn.addEventListener("pointercancel",up);
+    btn.addEventListener("pointerleave",e=>{ if(e.buttons===0) up(e); });
+  }
+
+  addEventListener("blur",()=>{
+    keys.left=keys.right=keys.down=keys.jump=false;
+  });
+
+  updateStatus();
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
