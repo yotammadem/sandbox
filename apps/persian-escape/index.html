@@ -116,8 +116,31 @@
     crouch:false,
     lives:3,
     invuln:0,
+    facing:1,
     spawnX:72, spawnY:160
   };
+
+  // Original PrinceJS kid sprite sheet (MS-DOS Prince of Persia artwork).
+  // Used here only for this non-commercial hobby prototype.
+  const kidSprite = new Image();
+  kidSprite.src = "https://raw.githubusercontent.com/oklemenz/PrinceJS/master/assets/gfx/kid.png";
+  const kidFrames = {
+    7:{x:73,y:1412,w:27,h:40}, 8:{x:52,y:1538,w:33,h:40},
+    9:{x:2,y:1538,w:33,h:40}, 10:{x:46,y:1330,w:25,h:39},
+    11:{x:2,y:926,w:26,h:38}, 12:{x:38,y:1496,w:34,h:40},
+    13:{x:69,y:1454,w:30,h:40}, 14:{x:2,y:1330,w:21,h:39},
+    15:{x:2,y:1666,w:12,h:41},
+    34:{x:64,y:1126,w:34,h:38}, 35:{x:61,y:847,w:26,h:37},
+    36:{x:48,y:1006,w:33,h:38}, 37:{x:18,y:1248,w:37,h:39},
+    38:{x:55,y:1623,w:19,h:41}, 39:{x:32,y:1710,w:33,h:43},
+    40:{x:76,y:1623,w:45,h:41}, 41:{x:30,y:267,w:50,h:30},
+    42:{x:37,y:147,w:41,h:27}, 43:{x:2,y:544,w:40,h:35},
+    44:{x:45,y:401,w:31,h:33},
+    106:{x:51,y:655,w:18,h:36},
+    107:{x:27,y:236,w:18,h:29}, 108:{x:65,y:67,w:19,h:23},
+    109:{x:2,y:21,w:20,h:19}
+  };
+  const kidRun = [7,8,9,10,11,12,13,14];
 
   function resetPlayer(full=false) {
     if (full) {
@@ -197,8 +220,14 @@
     }
 
     let target = 0;
-    if (keys.left) target -= player.speed;
-    if (keys.right) target += player.speed;
+    if (keys.left) {
+      target -= player.speed;
+      player.facing = -1;
+    }
+    if (keys.right) {
+      target += player.speed;
+      player.facing = 1;
+    }
 
     const accel = player.onGround ? 1700 : 900;
     const diff = target - player.vx;
@@ -368,45 +397,75 @@
     ctx.fillRect(exit.x+39,exit.y+54,5,5);
   }
 
-  function drawPlayer() {
-    const p=player;
-    if (p.invuln > 0 && Math.floor(world.time*14)%2===0) return;
-    const facing = player.vx < -5 ? -1 : 1;
-    const running = player.onGround && Math.abs(player.vx)>25;
-    const phase = Math.sin(world.time*13)*6;
-    const baseY = p.y + p.h;
+  function chooseKidFrame() {
+    if (player.crouch) return 109;
+    if (!player.onGround) {
+      if (player.vy < -430) return 34;
+      if (player.vy < -320) return 35;
+      if (player.vy < -220) return 36;
+      if (player.vy < -120) return 37;
+      if (player.vy < 0) return 38;
+      if (player.vy < 120) return 39;
+      if (player.vy < 240) return 40;
+      if (player.vy < 390) return 43;
+      return 44;
+    }
+    if (Math.abs(player.vx) > 28) {
+      return kidRun[Math.floor(world.time * 12) % kidRun.length];
+    }
+    return 15;
+  }
 
-    // legs
-    ctx.strokeStyle = "#f0e2ca";
-    ctx.lineWidth = 7;
-    ctx.lineCap = "square";
-    ctx.beginPath();
-    ctx.moveTo(p.x+p.w/2-4, baseY-17);
-    ctx.lineTo(p.x+p.w/2-8+(running?phase:0), baseY-2);
-    ctx.moveTo(p.x+p.w/2+4, baseY-17);
-    ctx.lineTo(p.x+p.w/2+8-(running?phase:0), baseY-2);
-    ctx.stroke();
-
-    // torso
-    pxRect(p.x+5,p.y+14,p.w-10,p.h-30,"#f6ede0");
-    pxRect(p.x+3,p.y+22,p.w-6,9,"#8f2137");
-
-    // head
+  function drawFallbackPlayer() {
+    const p = player;
+    ctx.fillStyle = "#f4eadb";
+    ctx.fillRect(p.x + 6, p.y + 10, p.w - 12, p.h - 12);
+    ctx.fillStyle = "#8f2137";
+    ctx.fillRect(p.x + 3, p.y + 25, p.w - 6, 8);
     ctx.fillStyle = "#d6a06f";
     ctx.beginPath();
-    ctx.arc(p.x+p.w/2,p.y+10,9,0,Math.PI*2);
+    ctx.arc(p.x + p.w / 2, p.y + 8, 8, 0, Math.PI * 2);
     ctx.fill();
-    // hair
-    ctx.fillStyle="#201216";
-    ctx.fillRect(p.x+p.w/2-9,p.y+3,18,5);
+  }
 
-    // arm
-    ctx.strokeStyle="#d6a06f";
-    ctx.lineWidth=5;
+  function drawPlayer() {
+    const p = player;
+    if (p.invuln > 0 && Math.floor(world.time * 14) % 2 === 0) return;
+
+    if (!kidSprite.complete || !kidSprite.naturalWidth) {
+      drawFallbackPlayer();
+      return;
+    }
+
+    const id = chooseKidFrame();
+    const f = kidFrames[id];
+    const scale = 1.55;
+    const dw = f.w * scale;
+    const dh = f.h * scale;
+    const footX = p.x + p.w / 2;
+    const footY = p.y + p.h + 2;
+
+    // Small grounding shadow makes the original sprite read cleanly against
+    // our much larger custom level tiles.
+    ctx.save();
+    ctx.globalAlpha = 0.28;
+    ctx.fillStyle = "#000";
     ctx.beginPath();
-    ctx.moveTo(p.x+p.w/2+facing*5,p.y+24);
-    ctx.lineTo(p.x+p.w/2+facing*16,p.y+30+(running?-phase*.4:0));
-    ctx.stroke();
+    ctx.ellipse(footX, footY + 1, 17, 4, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+
+    ctx.save();
+    ctx.imageSmoothingEnabled = false;
+    ctx.translate(footX, footY);
+    // PrinceJS source artwork faces left; mirror it when our player faces right.
+    if (p.facing > 0) ctx.scale(-1, 1);
+    ctx.drawImage(
+      kidSprite,
+      f.x, f.y, f.w, f.h,
+      -dw / 2, -dh, dw, dh
+    );
+    ctx.restore();
   }
 
   function drawLabels() {
