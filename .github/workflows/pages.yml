@@ -42,11 +42,11 @@ jobs:
           cache: npm
 
       - name: Refresh Bitcoin market data
-        if: github.event_name != 'push' || github.event.head_commit.message == 'chore: enable daily BTC refresh'
+        if: github.event_name != 'push' || github.event.head_commit.message == 'enable daily BTC refresh'
         run: node apps/investment-lab/scripts/update-btc-data.js
 
       - name: Commit refreshed Bitcoin data
-        if: github.event_name != 'push' || github.event.head_commit.message == 'chore: enable daily BTC refresh'
+        if: github.event_name != 'push' || github.event.head_commit.message == 'enable daily BTC refresh'
         run: |
           git add experiments/btc-regime-validation/sources/btc-usd-bitstamp.csv
           if git diff --cached --quiet; then
