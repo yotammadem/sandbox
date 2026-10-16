@@ -11,7 +11,8 @@ const initialState = {
     {id:'D-01',title:'Use fallback only for unsupported expressions',status:'accepted',links:['CS-03']},
     {id:'D-02',title:'Cache retry failure per baseline revision',status:'accepted',links:['CS-02','CS-03']},
     {id:'D-03',title:'Do not add a global lookup cache',status:'rejected',links:['CS-04']},
-    {id:'D-04',title:'Preserve result ordering and the API contract',status:'accepted',links:['CS-05']}
+    {id:'D-04',title:'Preserve result ordering and the API contract',status:'accepted',links:['CS-05']},
+    {id:'D-05',title:'Use temporary shared lookup state',status:'cancelled',links:['CS-04']}
   ],
   assumptions:[
     {id:'A-01',title:'The partition key is known for every lookup',status:'verified',links:['CS-02']},
@@ -29,7 +30,14 @@ const initialState = {
 export const STORAGE_KEY = 'changeflow-demo-v1';
 
 export function createInitialState() {
-  return structuredClone(initialState);
+  const state = structuredClone(initialState);
+  state.changesets.forEach((change) => { change.active = true; });
+  state.eventLog = state.activity.map((item, index) => ({
+    id: `EV-${String(index + 1).padStart(4, '0')}`, type: 'action', action: 'legacy',
+    summary: item.title, body: item.detail, at: item.time,
+    targets: [...new Set([...(item.title.match(/CS-\d+/g) || []), ...(item.detail.match(/CS-\d+/g) || [])])].map((id) => ({ kind: 'changeset', id })),
+  }));
+  return state;
 }
 
 const legacyText = new Map([
@@ -141,10 +149,94 @@ export function loadState(storage = globalThis.localStorage) {
     const saved = storage?.getItem(STORAGE_KEY);
     const state = saved ? migrateLegacyState(JSON.parse(saved)) : createInitialState();
     state.feedbackHistory ||= [];
+    state.eventLog ||= createInitialState().eventLog;
+    state.changesets.forEach((change) => { change.active ??= true; });
     return state;
   } catch {
     return createInitialState();
   }
+}
+
+export function appendHistoryEvent(state, event) {
+  state.eventLog ||= [];
+  const sequence = state.eventLog.reduce((max, item) => Math.max(max, Number(item.id?.replace('EV-', '')) || 0), 0) + 1;
+  const entry = {
+    id: `EV-${String(sequence).padStart(4, '0')}`,
+    type: event.type || 'action', action: event.action || 'update',
+    summary: event.summary, body: event.body || '', at: event.at || new Date().toISOString(),
+    targets: [...new Map((event.targets || []).map((target) => [`${target.kind}:${target.id}`, target])).values()],
+  };
+  state.eventLog.unshift(entry);
+  state.eventLog = state.eventLog.slice(0, 300);
+  return entry;
+}
+
+export function addComment(state, targets, body) {
+  const text = String(body || '').trim();
+  if (!text) throw new Error('A comment cannot be empty.');
+  return appendHistoryEvent(state, { type: 'comment', action: 'comment', summary: 'Comment added', body: text, targets });
+}
+
+function nextChangesetId(state) {
+  const max = state.changesets.reduce((n, c) => Math.max(n, Number(c.id.match(/\d+/)?.[0]) || 0), 0) + 1;
+  return `CS-${String(max).padStart(2, '0')}`;
+}
+
+function replaceDependencies(state, removedIds, replacementId) {
+  for (const change of state.changesets) {
+    if (change.active === false || removedIds.includes(change.id)) continue;
+    const had = (change.deps || []).some((id) => removedIds.includes(id));
+    if (had) change.deps = [...new Set(change.deps.flatMap((id) => removedIds.includes(id) ? [replacementId] : [id]))];
+  }
+}
+
+function queueStructure(state, type, ids, detail) {
+  state.pending.push({ type: 'structure', id: ids[0], ids, detail, time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) });
+}
+
+export function splitChangeset(state, sourceId, titles) {
+  const source = state.changesets.find((c) => c.id === sourceId && c.active !== false);
+  const parts = (titles || []).map((title) => String(title).trim()).filter(Boolean);
+  if (!source || parts.length < 2) throw new Error('Choose an active Changeset and at least two named results.');
+  const children = parts.map((title) => {
+    const id = nextChangesetId(state);
+    const child = { ...structuredClone(source), id, title, description: `Split from ${source.id}. The agent will prepare this focused implementation in the next simulated iteration.`, status: 'pending', active: true, splitFrom: source.id, deps: [...source.deps], rev: 1, hash: simulatedHash(id, 1, state.iteration + 1), files: [...source.files], stats: 'pending agent revision', diff: [`# Simulated split result from ${source.id}`, `# ${title}`], history: [{ rev: 1, hash: simulatedHash(id, 1, state.iteration + 1), note: `Created by splitting ${source.id}` }] };
+    state.changesets.push(child);
+    return child;
+  });
+  source.active = false; source.status = 'split'; source.splitInto = children.map((c) => c.id);
+  replaceDependencies(state, [source.id], children[0].id);
+  for (const change of state.changesets) if (change.active !== false && change.deps.includes(children[0].id)) change.deps = [...new Set(change.deps.flatMap((id) => id === children[0].id ? children.map((c) => c.id) : [id]))];
+  const ids = [source.id, ...children.map((c) => c.id)];
+  queueStructure(state, 'split', children.map((c) => c.id), `Split ${source.id} into ${children.map((c) => c.id).join(', ')}`);
+  appendHistoryEvent(state, { action: 'split', summary: `${source.id} split into ${children.map((c) => c.id).join(' and ')}`, body: `Resulting Changesets: ${children.map((c) => c.title).join('; ')}`, targets: ids.map((id) => ({ kind: 'changeset', id })) });
+  return children;
+}
+
+export function mergeChangesets(state, ids, title) {
+  const sources = [...new Set(ids)].map((id) => state.changesets.find((c) => c.id === id && c.active !== false));
+  const name = String(title || '').trim();
+  if (sources.length < 2 || sources.some((c) => !c) || !name) throw new Error('Choose at least two active Changesets and name the result.');
+  const sourceIds = sources.map((c) => c.id), id = nextChangesetId(state);
+  const child = { ...structuredClone(sources[0]), id, title: name, description: `Merged from ${sourceIds.join(', ')}. The agent will prepare this combined implementation in the next simulated iteration.`, status: 'pending', active: true, mergedFrom: sourceIds, deps: [...new Set(sources.flatMap((c) => c.deps).filter((dep) => !sourceIds.includes(dep)))], rev: 1, hash: simulatedHash(id, 1, state.iteration + 1), files: [...new Set(sources.flatMap((c) => c.files))], stats: 'pending agent revision', diff: [`# Simulated merge result from ${sourceIds.join(', ')}`, `# ${name}`], history: [{ rev: 1, hash: simulatedHash(id, 1, state.iteration + 1), note: `Created by merging ${sourceIds.join(', ')}` }] };
+  state.changesets.push(child);
+  sources.forEach((c) => { c.active = false; c.status = 'merged'; c.mergedInto = id; });
+  replaceDependencies(state, sourceIds, id);
+  queueStructure(state, 'merge', [id], `Merged ${sourceIds.join(', ')} into ${id}`);
+  appendHistoryEvent(state, { action: 'merge', summary: `${sourceIds.join(' and ')} merged into ${id}`, body: `Resulting Changeset: ${name}`, targets: [...sourceIds, id].map((targetId) => ({ kind: 'changeset', id: targetId })) });
+  return child;
+}
+
+export function reviewAssumption(state, id, status, reason = '') {
+  const assumption = state.assumptions.find((item) => item.id === id);
+  if (!assumption || !['verified', 'rejected', 'unverified'].includes(status)) throw new Error('Assumptions can be verified or rejected, not canceled.');
+  assumption.status = status;
+  assumption.rejectionReason = status === 'rejected' ? String(reason).trim() : '';
+  assumption.needsInvestigation = status === 'rejected' && !assumption.rejectionReason;
+  const detail = status === 'rejected' ? (assumption.rejectionReason || 'No reason provided; the agent should investigate why this assumption is false.') : `Assumption marked ${status}.`;
+  state.pending.push({ type: 'assumption', id, detail: `Assumption ${id} ${status}: ${detail}`, time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) });
+  appendHistoryEvent(state, { action: status, summary: `Assumption ${id} ${status}`, body: detail, targets: [{ kind: 'assumption', id }, ...assumption.links.map((targetId) => ({ kind: 'changeset', id: targetId }))] });
+  return assumption;
 }
 
 export function saveState(state, storage = globalThis.localStorage) {
@@ -179,6 +271,11 @@ function feedbackRoots(state) {
     // An approval records a human decision, but does not ask the agent to rewrite code.
     if (item.type === 'review' && item.status !== 'approved') affected.add(item.id);
     if (item.type === 'deps') affected.add(item.id);
+    if (item.type === 'structure') item.ids?.forEach((id) => affected.add(id));
+    if (item.type === 'assumption') {
+      const assumption = state.assumptions.find((record) => record.id === item.id);
+      assumption?.links.forEach((id) => affected.add(id));
+    }
     if (item.type === 'record') {
       const records = item.id.startsWith('D-') ? state.decisions : state.assumptions;
       records.find((record) => record.id === item.id)?.links.forEach((id) => affected.add(id));
@@ -194,6 +291,7 @@ function includeDependents(changesets, roots) {
   while (changed) {
     changed = false;
     for (const change of changesets) {
+      if (change.active === false) continue;
       if (!affected.has(change.id) && (change.deps || []).some((id) => affected.has(id))) {
         affected.add(change.id);
         changed = true;
@@ -220,6 +318,7 @@ export function applyAgentIteration(state) {
   const updatedIds = [];
 
   for (const change of state.changesets) {
+    if (change.active === false) continue;
     if (!affected.has(change.id)) continue;
     change.rev += 1;
     change.hash = simulatedHash(change.id, change.rev, state.iteration);

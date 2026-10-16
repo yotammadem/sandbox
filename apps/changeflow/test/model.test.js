@@ -3,11 +3,16 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import {
   applyAgentIteration,
+  addComment,
+  appendHistoryEvent,
   createInitialState,
   hasCycle,
   loadState,
   saveState,
   STORAGE_KEY,
+  splitChangeset,
+  mergeChangesets,
+  reviewAssumption,
 } from '../src/model.js';
 
 test('sample dependency graph is acyclic and detects a cycle', () => {
@@ -99,4 +104,45 @@ test('page declares English left-to-right layout', async () => {
   const html = await readFile(new URL('../index.html', import.meta.url), 'utf8');
   assert.match(html, /<html lang="en" dir="ltr">/);
   assert.match(html, /<title>Changeflow — AI Code Review<\/title>/);
+});
+
+test('shared history links comments to multiple records', () => {
+  const state = createInitialState();
+  const item = addComment(state, [{ kind: 'changeset', id: 'CS-03' }, { kind: 'assumption', id: 'A-02' }], 'Please verify the legacy path.');
+  assert.equal(item.type, 'comment');
+  assert.deepEqual(item.targets, [{ kind: 'changeset', id: 'CS-03' }, { kind: 'assumption', id: 'A-02' }]);
+  assert.equal(state.eventLog[0].body, 'Please verify the legacy path.');
+  assert.equal(appendHistoryEvent(state, { summary: 'Test event', targets: [] }).id, 'EV-0006');
+});
+
+test('splitting preserves the original and updates dependents to all results', () => {
+  const state = createInitialState();
+  const parts = splitChangeset(state, 'CS-03', ['Resolve unsupported expressions', 'Resolve unavailable indexes']);
+  assert.deepEqual(parts.map((part) => part.id), ['CS-06', 'CS-07']);
+  assert.equal(state.changesets.find((change) => change.id === 'CS-03').active, false);
+  assert.deepEqual(state.changesets.find((change) => change.id === 'CS-05').deps, ['CS-06', 'CS-07', 'CS-04']);
+  assert.deepEqual(state.eventLog[0].targets.map((target) => target.id), ['CS-03', 'CS-06', 'CS-07']);
+  assert.deepEqual(applyAgentIteration(state).updatedIds.sort(), ['CS-05', 'CS-06', 'CS-07']);
+});
+
+test('merging preserves source history and creates a result with combined dependencies', () => {
+  const state = createInitialState();
+  const result = mergeChangesets(state, ['CS-01', 'CS-02'], 'Consolidate baseline setup');
+  assert.equal(result.id, 'CS-06');
+  assert.equal(result.active, true);
+  assert.deepEqual(result.deps, []);
+  assert.equal(state.changesets.find((change) => change.id === 'CS-01').mergedInto, 'CS-06');
+  assert.deepEqual(state.eventLog[0].targets.map((target) => target.id), ['CS-01', 'CS-02', 'CS-06']);
+  assert.deepEqual(applyAgentIteration(state).updatedIds.sort(), ['CS-03', 'CS-04', 'CS-05', 'CS-06']);
+});
+
+test('assumptions can be verified or rejected but not canceled; reasonless rejection requests investigation', () => {
+  const state = createInitialState();
+  const assumption = reviewAssumption(state, 'A-02', 'rejected');
+  assert.equal(assumption.needsInvestigation, true);
+  assert.match(state.pending[0].detail, /agent should investigate/);
+  assert.deepEqual(applyAgentIteration(state).updatedIds, ['CS-03', 'CS-05']);
+  assert.throws(() => reviewAssumption(state, 'A-02', 'cancelled'), /not canceled/);
+  reviewAssumption(state, 'A-02', 'rejected', 'The legacy client never enters this code path.');
+  assert.equal(state.assumptions.find((item) => item.id === 'A-02').needsInvestigation, false);
 });
