@@ -1,0 +1,5 @@
+CHANGEFLOW_API_TOKEN=replace-with-a-long-random-local-token
+GITHUB_TOKEN=replace-with-a-fine-grained-token-for-local-GitHub-storage
+GITHUB_APP_CLIENT_ID=replace-with-github-app-client-id
+GITHUB_APP_CLIENT_SECRET=replace-with-github-app-client-secret
+GITHUB_APP_CALLBACK_URL=http://localhost:8787/auth/github/callback
