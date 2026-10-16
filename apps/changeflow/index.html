@@ -15,13 +15,18 @@
 
     .dag-stage{height:var(--graph-height,470px);aspect-ratio:auto;max-width:445px}.dag-node{height:92px}.object-history{margin-top:14px;padding-top:10px;border-top:1px solid #edf1f6}.object-history .minor-title{margin-bottom:7px}.object-event{padding:8px 0;border-top:1px solid #f0f3f7;font-size:11px}.object-event:first-of-type{border-top:0}.object-event b{display:inline-block;font-size:11px}.object-event time{float:right;color:#8995a5;font-size:10px}.object-event p{margin:5px 0 0;color:#64738a;white-space:pre-wrap}.event-targets{display:flex;gap:5px;flex-wrap:wrap;margin-top:5px}.structural-actions{flex-wrap:wrap;margin:12px 0}.structural-actions .btn{font-size:11px;padding:8px 10px}.investigation-flag{margin-top:8px;padding:8px 10px;border-radius:8px;background:#fff3e0;color:#91621b;font-size:11px;font-weight:700}.archived-list summary{cursor:pointer;font-weight:800;color:#687a93;padding:3px}.archived-list .list-layout{margin-top:12px}.tag.cancelled,.tag.split,.tag.merged{background:#f0eaf8;color:#70518d}.tag.cancelled{background:#f3edf4;color:#80618a}
   </style>
+  <style>
+    .auth-control{display:inline-block;text-decoration:none;white-space:nowrap}
+    @media(max-width:620px){.top-actions{gap:4px}.auth-control{max-width:112px;overflow:hidden;text-overflow:ellipsis;font-size:9px;padding:6px}}
+    @media(max-width:360px){.top-actions #iterationTag{display:none}.auth-control{max-width:100px}}
+  </style>
 </head>
 <body>
 <div class="app-shell">
   <header class="top"><div class="wrap top-inner">
     <div class="topline">
       <div class="brand"><div class="brand-logo" id="brandIcon"></div><div><div class="brand-name">Changeflow</div><div class="brand-sub">SYMPHONY / REVIEW LAB</div></div></div>
-      <div class="top-actions"><span class="dark-pill" id="iterationTag">ITERATION 03</span><button class="ghost-dark" data-action="reset" title="Reset demo" aria-label="Reset demo" id="resetIcon"></button></div>
+      <div class="top-actions"><a class="dark-pill auth-control" id="authControl" href="/auth/github/start">Sign in with GitHub</a><span class="dark-pill" id="iterationTag">ITERATION 03</span><button class="ghost-dark" data-action="reset" title="Reset demo" aria-label="Reset demo" id="resetIcon"></button></div>
     </div>
     <div class="hero"><div><div class="hero-kicker">EYES-2481 · BASELINE LOOKUP</div><h1>Review intent, not just diffs</h1><p>Stable changesets, decisions, and assumptions in context — even when an agent rewrites commits.</p></div><div class="hero-count" id="heroStats"></div></div>
   </div></header>

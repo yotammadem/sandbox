@@ -104,6 +104,8 @@ test('page declares English left-to-right layout', async () => {
   const html = await readFile(new URL('../index.html', import.meta.url), 'utf8');
   assert.match(html, /<html lang="en" dir="ltr">/);
   assert.match(html, /<title>Changeflow — AI Code Review<\/title>/);
+  assert.match(html, /href="\/auth\/github\/start"/);
+  assert.match(html, /name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/);
 });
 
 test('shared history links comments to multiple records', () => {
