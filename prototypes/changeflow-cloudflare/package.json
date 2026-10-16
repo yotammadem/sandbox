@@ -1,0 +1,22 @@
+{
+  "name": "changeflow-cloudflare-prototype",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "test": "node --test",
+    "dev": "wrangler dev",
+    "dev:github": "wrangler dev --config wrangler.github.jsonc",
+    "deploy": "wrangler deploy",
+    "deploy:github": "wrangler deploy --config wrangler.github.jsonc",
+    "db:create": "wrangler d1 create changeflow",
+    "db:migrate:local": "wrangler d1 migrations apply changeflow --local",
+    "db:migrate:remote": "wrangler d1 migrations apply changeflow --remote",
+    "db:create:auth": "wrangler d1 create changeflow-auth",
+    "db:migrate:auth:local": "wrangler d1 migrations apply changeflow-auth --local --config wrangler.github.jsonc",
+    "db:migrate:auth:remote": "wrangler d1 migrations apply changeflow-auth --remote --config wrangler.github.jsonc"
+  },
+  "devDependencies": {
+    "wrangler": "4.150.0"
+  }
+}
