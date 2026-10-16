@@ -8,6 +8,7 @@ on:
       - apps/safe-artifact-playground/**
       - apps/investment-lab/**
       - apps/persian-escape/**
+      - apps/changeflow/**
       - experiments/btc-regime-validation/sources/btc-usd-bitstamp.csv
       - package.json
       - package-lock.json
@@ -78,6 +79,9 @@ jobs:
 
       - name: Add Persian Escape
         run: cp -R apps/persian-escape apps/safe-artifact-playground/dist/persian-escape
+
+      - name: Add Changeflow review demo
+        run: mkdir -p apps/safe-artifact-playground/dist/changeflow && cp apps/changeflow/index.html apps/safe-artifact-playground/dist/changeflow/index.html
 
       - name: Configure Pages
         uses: actions/configure-pages@v5
