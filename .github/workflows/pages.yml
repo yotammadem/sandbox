@@ -71,6 +71,9 @@ jobs:
       - name: Test investment lab
         run: npm test --workspace=@sandbox/investment-lab
 
+      - name: Test Changeflow review model
+        run: npm test --workspace=@sandbox/changeflow
+
       - name: Build investment lab
         run: GITHUB_SHA="$(git rev-parse HEAD)" npm run build --workspace=@sandbox/investment-lab
 
@@ -81,7 +84,7 @@ jobs:
         run: cp -R apps/persian-escape apps/safe-artifact-playground/dist/persian-escape
 
       - name: Add Changeflow review demo
-        run: mkdir -p apps/safe-artifact-playground/dist/changeflow && cp apps/changeflow/index.html apps/safe-artifact-playground/dist/changeflow/index.html
+        run: mkdir -p apps/safe-artifact-playground/dist/changeflow && cp apps/changeflow/index.html apps/safe-artifact-playground/dist/changeflow/index.html && cp -R apps/changeflow/src apps/safe-artifact-playground/dist/changeflow/src
 
       - name: Configure Pages
         uses: actions/configure-pages@v5
