@@ -72,7 +72,32 @@ const legacyText = new Map([
 ]);
 
 function translateLegacyText(value) {
-  return legacyText.get(value) || value;
+  let translated = legacyText.get(value) || value;
+  const replacements = [
+    [/^סבב (\d+) הוכן \(סימולציה\)$/, 'Iteration $1 prepared (simulation)'],
+    [/^תלויות של (CS-\d+) עודכנו$/, 'Dependencies for $1 updated'],
+    [/^תלויות עודכנו: (.*)$/, 'Dependencies updated: $1'],
+    [/^תלויות חדשות: (.*)$/, 'New dependencies: $1'],
+    [/^בקשת תיקון: ?/, 'Request changes: '],
+    [/^סטטוס קודם: ?/, 'Previous status: '],
+    [/^נוספה החלטה (D-\d+)$/, 'Added decision $1'],
+    [/^עודכנה החלטה (D-\d+)$/, 'Updated decision $1'],
+    [/^נוספה הנחה (A-\d+)$/, 'Added assumption $1'],
+    [/^עודכנה הנחה (A-\d+)$/, 'Updated assumption $1'],
+    [/^אושר · (CS-\d+)$/, 'Approved · $1'],
+    [/^נדרש תיקון · (CS-\d+)$/, 'Changes requested · $1'],
+    [/^ממתין · (CS-\d+)$/, 'Pending · $1'],
+  ];
+  for (const [pattern, replacement] of replacements) {
+    if (pattern.test(translated)) {
+      translated = translated.replace(pattern, replacement);
+      break;
+    }
+  }
+  for (const [oldText, newText] of [...legacyText].sort(([left], [right]) => right.length - left.length)) {
+    if (translated.includes(oldText)) translated = translated.replaceAll(oldText, newText);
+  }
+  return translated;
 }
 
 function migrateLegacyState(state) {
@@ -97,7 +122,17 @@ function migrateLegacyState(state) {
     detail: translateLegacyText(item.detail),
     time: translateLegacyText(item.time),
   }));
-  for (const item of state.pending || []) item.detail = translateLegacyText(item.detail);
+  for (const item of state.pending || []) {
+    item.detail = translateLegacyText(item.detail);
+    item.time = translateLegacyText(item.time);
+  }
+  for (const batch of state.feedbackHistory || []) {
+    batch.items = (batch.items || []).map((item) => ({
+      ...item,
+      detail: translateLegacyText(item.detail),
+      time: translateLegacyText(item.time),
+    }));
+  }
   return state;
 }
 

@@ -1,4 +1,4 @@
-import { createInitialState, loadState, saveState, hasCycle, applyAgentIteration } from './model.js';
+import { createInitialState, loadState, saveState, hasCycle, applyAgentIteration } from './model.js?v=20261016-en2';
 
 
 const initial = createInitialState();

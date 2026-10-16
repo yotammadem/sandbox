@@ -77,6 +77,10 @@ test('legacy saved demo data migrates to English without discarding review state
   state.changesets[0].status = 'approved';
   state.changesets[0].history[0].note = 'הצעה מקורית';
   state.decisions[0].title = 'Fallback רק כשהביטוי אינו נתמך';
+  state.activity[0].title = 'נדרש תיקון · CS-04';
+  state.activity[0].detail = 'סטטוס קודם: אושר';
+  state.pending.push({ type: 'review', id: 'CS-04', status: 'changes', detail: 'בקשת תיקון: Timeout Reject ללא נימוק', time: 'היום, 08:10' });
+  state.feedbackHistory = [{ iteration: 4, items: [{ id: 'CS-04', detail: 'תלויות עודכנו: CS-02', time: 'לפני 12 דקות' }], updatedIds: ['CS-04'] }];
   const values = new Map([[STORAGE_KEY, JSON.stringify(state)]]);
   const restored = loadState({ getItem: (key) => values.get(key) });
 
@@ -84,6 +88,11 @@ test('legacy saved demo data migrates to English without discarding review state
   assert.equal(restored.changesets[0].status, 'approved');
   assert.equal(restored.changesets[0].history[0].note, 'Initial proposal');
   assert.equal(restored.decisions[0].title, 'Use fallback only for unsupported expressions');
+  assert.equal(restored.activity[0].title, 'Changes requested · CS-04');
+  assert.equal(restored.activity[0].detail, 'Previous status: Approved');
+  assert.equal(restored.pending[0].detail, 'Request changes: Timeout reject — no explanation');
+  assert.equal(restored.feedbackHistory[0].items[0].detail, 'Dependencies updated: CS-02');
+  assert.equal(JSON.stringify(restored).match(/[\u0590-\u05ff]/), null);
 });
 
 test('page declares English left-to-right layout', async () => {
