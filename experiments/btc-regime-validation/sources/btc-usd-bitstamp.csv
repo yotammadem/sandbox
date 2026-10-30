@@ -7,7 +7,7 @@
 # venue=Bitstamp
 # interval=1d
 # timezone=UTC
-# frozen_at=2026-10-28
+# frozen_at=2026-10-29
 # incremental_update_source=Bitstamp Public API v2 OHLC /api/v2/ohlc/btcusd/
 date,open,high,low,close,volume
 2012-01-01,4.58,5.0,4.58,5.0,21.602
@@ -5425,3 +5425,4 @@ date,open,high,low,close,volume
 2026-10-26,80047.79,80696.96,79260.02,80005.52,1849.32095594
 2026-10-27,80005.53,81179.37,79384.39,80811.00,1276.87603021
 2026-10-28,80810.99,81708.98,80297.16,81250.12,1372.82328100
+2026-10-29,81250.12,81888.33,77718.78,77792.67,2162.97375441
